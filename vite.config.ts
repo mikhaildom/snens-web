@@ -4,9 +4,11 @@ import { defineConfig } from 'vite'
 export default defineConfig({
   plugins: [react()],
   server: {
-    host: '127.0.0.1',
+    // слушаем всё: доступ и по tailscale (100.73.69.107), и через ssh-туннель
+    host: '100.73.69.107',
     port: 5174,
     strictPort: true,
-    allowedHosts: ['snens.svuvich.dev', 'localhost', '.svuvich.dev'],
+    allowedHosts: true,
+    watch: { ignored: ['**/dist/**'] },
   },
 })

@@ -206,6 +206,13 @@ export default function App() {
         <div className="rail__brand">
           <span className="rail__mark">snens</span>
           <span className="rail__ver">v0.1 mock</span>
+          <button
+            className="rail__close"
+            onClick={() => setRailOpen(false)}
+            aria-label="закрыть"
+          >
+            ×
+          </button>
         </div>
 
         <div className="rail__section">

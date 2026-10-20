@@ -189,6 +189,15 @@ button.ghost:hover {
   font-size: var(--fs-xs);
 }
 
+.rail__close {
+  display: none;
+  margin-left: auto;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  padding: 0 4px;
+}
+
 .rail__section {
   padding: calc(var(--step) * 0.5) var(--step) 0;
   display: flex;
@@ -592,6 +601,9 @@ pre.code .dim {
   }
   .rail[data-open="true"] {
     transform: none;
+  }
+  .rail__close {
+    display: inline-block;
   }
   .topbar__meta > *:not(.chip) {
     display: none;

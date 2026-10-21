@@ -276,12 +276,12 @@ export default function App() {
             {contextStats.cwd} · {turns} ходов
           </span>
           <span className="sb--opt">
-          <span className="gauge">
-            <span style={{ width: `${Math.max(pct, 2)}%` }} />
+            <span className="gauge">
+              <span style={{ width: `${Math.max(pct, 2)}%` }} />
+            </span>
+            {pct.toFixed(2)}%
           </span>
-          {pct.toFixed(2)}%
-        </span>
-        <span className="sb--opt">~{Math.round(contextStats.used / 1000)}k / 1M</span>
+          <span className="sb--opt">~{Math.round(contextStats.used / 1000)}k / 1M</span>
         </div>
       </main>
 

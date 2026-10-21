@@ -3,10 +3,13 @@ import {
   contextStats,
   messages as seedMessages,
   sessions,
-  toolLog,
+  toolRuns,
+  windows,
   type Block,
   type Message,
   type Role,
+  type ToolRun,
+  type Win,
 } from "./mock";
 import { applyTheme, initialTheme, type Theme } from "./theme";
 
@@ -17,7 +20,7 @@ const ROLE_LABEL: Record<Role, string> = {
   system: "system",
 };
 
-function Code({ lang, code }: { lang: string; code: string }) {
+function Code({ code }: { code: string }) {
   const rows = code.split("\n").map((line, i) => {
     const cls = line.startsWith("+") ? "add" : line.startsWith("-") ? "del" : "";
     return (
@@ -26,14 +29,10 @@ function Code({ lang, code }: { lang: string; code: string }) {
       </div>
     );
   });
-  return (
-    <pre className="code" data-lang={lang}>
-      {rows}
-    </pre>
-  );
+  return <pre className="code">{rows}</pre>;
 }
 
-function Bubble({ m }: { m: Message }) {
+function Line({ m }: { m: Message }) {
   return (
     <article className={`msg msg--${m.role}${m.pending ? " msg--pending" : ""}`}>
       <header className="msg__head">
@@ -43,11 +42,7 @@ function Bubble({ m }: { m: Message }) {
       </header>
       <div className="msg__body">
         {m.blocks.map((b: Block, i) =>
-          b.kind === "code" ? (
-            <Code key={i} lang={b.lang} code={b.code} />
-          ) : (
-            <div key={i}>{b.text}</div>
-          ),
+          b.kind === "code" ? <Code key={i} code={b.code} /> : <div key={i}>{b.text}</div>,
         )}
       </div>
     </article>
@@ -82,79 +77,77 @@ function ThemeBar({
   );
 }
 
-function Inspector() {
-  const pct = (contextStats.used / contextStats.limit) * 100;
+function Window({ w }: { w: Win }) {
+  const [open, setOpen] = useState(w.kind !== "doc");
   return (
-    <aside className="inspector" aria-label="inspector">
-      <section className="panel">
-        <div className="panel__head">
-          <span>context</span>
-          <span>{pct.toFixed(2)}%</span>
-        </div>
-        <div className="panel__body">
-          <div className="gauge">
-            <span style={{ width: `${Math.max(pct, 1.5)}%` }} />
-          </div>
-          <dl className="kv">
-            <dt>model</dt>
-            <dd>{contextStats.model}</dd>
-            <dt>provider</dt>
-            <dd>{contextStats.provider}</dd>
-            <dt>tokens</dt>
-            <dd>
-              {contextStats.used.toLocaleString("ru-RU")} /{" "}
-              {contextStats.limit.toLocaleString("ru-RU")}
-            </dd>
-            <dt>turns</dt>
-            <dd>{contextStats.turns}</dd>
-            <dt>tools</dt>
-            <dd>{contextStats.tools}</dd>
-            <dt>skills</dt>
-            <dd>{contextStats.skills}</dd>
-          </dl>
-        </div>
-      </section>
-
-      <section className="panel">
-        <div className="panel__head">
-          <span>tools</span>
-          <span>last {toolLog.length}</span>
-        </div>
-        <div className="panel__body log">
-          {toolLog.map((t, i) => (
-            <div key={i}>
-              <b>{t.tool}</b>
-              <span>{t.detail}</span>
-              <i>{t.time}</i>
+    <section className="win">
+      <button className="win__bar" onClick={() => setOpen((v) => !v)}>
+        <span className="win__kind">{w.kind}</span>
+        <span>{w.title}</span>
+        <span className="win__state" data-state={w.state}>
+          {w.state === "running" ? "● " : w.state === "done" ? "✓ " : ""}
+          {w.state}
+        </span>
+      </button>
+      {open && (
+        <div className="win__body">
+          <span className="urlbar">{w.meta}</span>
+          {w.kind === "browser" ? (
+            <div className="skeleton">
+              <i style={{ width: "62%" }} />
+              <i style={{ width: "88%" }} />
+              <i style={{ width: "74%" }} />
+              <i style={{ width: "40%" }} />
             </div>
-          ))}
+          ) : (
+            w.body.map((line, i) => <pre key={i}>{line}</pre>)
+          )}
         </div>
-      </section>
+      )}
+    </section>
+  );
+}
 
-      <section className="panel" style={{ flex: 1, borderBottom: 0 }}>
-        <div className="panel__head">
-          <span>next</span>
-          <span>mock</span>
+function ToolRunRow({ t }: { t: ToolRun }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="win">
+      <button className="win__bar" onClick={() => setOpen((v) => !v)}>
+        <span className="win__kind">{t.state === "ok" ? "✓" : t.state === "error" ? "×" : "●"}</span>
+        <span>{t.tool}</span>
+        <span className="win__kind" style={{ textTransform: "none", letterSpacing: 0 }}>
+          {t.arg}
+        </span>
+        <span className="win__state" data-state={t.state}>
+          {t.ms}
+        </span>
+      </button>
+      {open && (
+        <div className="win__body">
+          <pre>{t.out}</pre>
         </div>
-        <div className="panel__body log">
-          <div>
-            <span>вёрстка и темы</span>
-            <i>done</i>
-          </div>
-          <div>
-            <span>подключить API чата</span>
-            <i>next</i>
-          </div>
-          <div>
-            <span>стрим тулов и диффов</span>
-            <i>later</i>
-          </div>
-          <div>
-            <span>tauri-обёртка</span>
-            <i>later</i>
-          </div>
-        </div>
-      </section>
+      )}
+    </div>
+  );
+}
+
+function Dock() {
+  return (
+    <aside className="dock" aria-label="dock">
+      <div className="dock__head">
+        <span>окна</span>
+        <span>{windows.length}</span>
+      </div>
+      {windows.map((w) => (
+        <Window key={w.id} w={w} />
+      ))}
+      <div className="dock__head">
+        <span>тулы</span>
+        <span>{toolRuns.length}</span>
+      </div>
+      {toolRuns.map((t) => (
+        <ToolRunRow key={t.id} t={t} />
+      ))}
     </aside>
   );
 }
@@ -176,10 +169,8 @@ export default function App() {
     if (el) el.scrollTop = el.scrollHeight;
   }, [msgs]);
 
-  const turns = useMemo(
-    () => msgs.filter((m) => m.role !== "system").length,
-    [msgs],
-  );
+  const turns = useMemo(() => msgs.filter((m) => m.role !== "system").length, [msgs]);
+  const pct = (contextStats.used / contextStats.limit) * 100;
 
   function send() {
     const text = draft.trim();
@@ -190,12 +181,7 @@ export default function App() {
     });
     setMsgs((prev) => [
       ...prev,
-      {
-        id: crypto.randomUUID(),
-        role: "user",
-        time: now,
-        blocks: [{ kind: "text", text }],
-      },
+      { id: crypto.randomUUID(), role: "user", time: now, blocks: [{ kind: "text", text }] },
     ]);
     setDraft("");
   }
@@ -206,11 +192,7 @@ export default function App() {
         <div className="rail__brand">
           <span className="rail__mark">snens</span>
           <span className="rail__ver">v0.1 mock</span>
-          <button
-            className="rail__close"
-            onClick={() => setRailOpen(false)}
-            aria-label="закрыть"
-          >
+          <button className="rail__close" onClick={() => setRailOpen(false)} aria-label="закрыть">
             ×
           </button>
         </div>
@@ -248,27 +230,21 @@ export default function App() {
 
       <main className="main">
         <header className="topbar">
-          <button
-            className="ghost burger"
-            onClick={() => setRailOpen((v) => !v)}
-            aria-label="sessions"
-          >
+          <button className="ghost burger" onClick={() => setRailOpen(true)} aria-label="sessions">
             ≡
           </button>
           <span className="topbar__title">web-клиент для snens</span>
-          <span className="chip chip--accent">mock</span>
           <div className="topbar__meta">
             <span className="chip">
               <span className="dot" /> online
             </span>
-            <span>{contextStats.model}</span>
-            <span>{turns} ходов</span>
+            <span className="chip chip--accent">mock</span>
           </div>
         </header>
 
         <div className="feed" ref={feedRef}>
           {msgs.map((m) => (
-            <Bubble key={m.id} m={m} />
+            <Line key={m.id} m={m} />
           ))}
         </div>
 
@@ -289,16 +265,27 @@ export default function App() {
               send
             </button>
           </div>
-          <div className="composer__hint">
-            <span>cwd {contextStats.cwd}</span>
-            <span>tools {contextStats.tools}</span>
-            <span>ctx {((contextStats.used / contextStats.limit) * 100).toFixed(2)}%</span>
-            <span style={{ marginLeft: "auto" }}>данные — мок</span>
-          </div>
+        </div>
+
+        <div className="statusbar">
+          <span className="sb--key">
+            <span className="sb--model-full">{contextStats.model}</span>
+            <span className="sb--model-short">dsv4-flash</span>
+          </span>
+          <span className="sb--grow">
+            {contextStats.cwd} · {turns} ходов
+          </span>
+          <span className="sb--opt">
+          <span className="gauge">
+            <span style={{ width: `${Math.max(pct, 2)}%` }} />
+          </span>
+          {pct.toFixed(2)}%
+        </span>
+        <span className="sb--opt">~{Math.round(contextStats.used / 1000)}k / 1M</span>
         </div>
       </main>
 
-      <Inspector />
+      <Dock />
     </div>
   );
 }

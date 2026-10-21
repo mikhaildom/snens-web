@@ -1699,21 +1699,29 @@ pre.code .dim {
   overflow: hidden;
 }
 
+/* Доли считаются от окна, а сумма может его превысить (окно переполнено).
+   Ширины задаются процентами, лишнее срезает overflow у полосы — поэтому
+   сегмент не должен сжиматься флексом. */
 .context__seg {
   height: 100%;
   min-width: 1px;
+  flex: 0 0 auto;
 }
 
-.context__seg[data-kind="in"] {
-  background: var(--hair);
+.context__seg[data-kind="prefix"] {
+  background: var(--ink-2);
 }
 
-.context__seg[data-kind="cached"] {
+.context__seg[data-kind="history"] {
   background: var(--ink);
 }
 
-.context__seg[data-kind="out"] {
+.context__seg[data-kind="tools"] {
   background: var(--accent);
+}
+
+.context__seg[data-kind="images"] {
+  background: var(--ok);
 }
 
 .context__seg[data-kind="free"] {
@@ -1722,11 +1730,23 @@ pre.code .dim {
 }
 
 .context__legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--step);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2px var(--step);
   font-size: var(--fs-xs);
   color: var(--ink-2);
+}
+
+.context__legend > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Итоговая строка («N сообщений · M вызовов») — на всю ширину. */
+.context__legend > span:last-child {
+  grid-column: 1 / -1;
+  color: var(--ink);
 }
 
 .context__legend i {
@@ -1737,16 +1757,20 @@ pre.code .dim {
   vertical-align: baseline;
 }
 
-.context__legend i[data-kind="in"] {
-  background: var(--hair);
+.context__legend i[data-kind="prefix"] {
+  background: var(--ink-2);
 }
 
-.context__legend i[data-kind="cached"] {
+.context__legend i[data-kind="history"] {
   background: var(--ink);
 }
 
-.context__legend i[data-kind="out"] {
+.context__legend i[data-kind="tools"] {
   background: var(--accent);
+}
+
+.context__legend i[data-kind="images"] {
+  background: var(--ok);
 }
 
 .context__legend i[data-kind="free"] {

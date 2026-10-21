@@ -10,6 +10,7 @@ import {
   type ToolCall,
   type TranscriptMessage,
   type Usage,
+  type WindowBreakdown,
 } from "./api";
 import { Markdown } from "./markdown";
 import { applyTheme, initialTheme, type Theme } from "./theme";
@@ -565,79 +566,74 @@ function Dock({
 }
 
 /**
- * Окно контекста: сколько сессия уже съела и из чего это состоит.
- *
- * Сегменты (как на референсе): cached — вход из кеша (дёшево), in — свежий
- * вход (кеш-мисс), out — выход модели, free — остаток окна. Считаем по записям
- * `usage`: у каждого хода вход — это и есть занятое окно на момент хода, поэтому
- * берём МАКСИМУМ входа, а не сумму (сумма дала бы кратную переоценку).
+ * Окно контекста: расклад считает ядро (`GET /v1/sessions/{id}/context`) по той
+ * же проекции промпта, что уедет провайдеру. Клиент ничего не досчитывает:
+ * сегменты — префикс (системный промпт), история диалога, результаты тулов
+ * вместе со схемами инструментов, картинки.
  */
-function ContextWindow({ msgs, limit }: { msgs: TranscriptMessage[]; limit: number }) {
-  let inTok = 0;
-  let cached = 0;
-  let outTok = 0;
-  let costMicro = 0;
-  let turns = 0;
-  for (const m of msgs) {
-    if (!m.usage) continue;
-    turns += 1;
-    inTok = Math.max(inTok, m.usage.in_tok);
-    cached = Math.max(cached, m.usage.cached_tok);
-    outTok += m.usage.out_tok;
-    costMicro += m.usage.cost_micro;
+function ContextWindow({
+  breakdown,
+  limit,
+}: {
+  breakdown: WindowBreakdown | null;
+  limit: number;
+}) {
+  if (!breakdown) {
+    return (
+      <div className="context">
+        <div className="context__head">
+          <b>окно</b>
+          <span>нет данных</span>
+        </div>
+      </div>
+    );
   }
-  // Выход всех ходов суммируется, но окно он не занимает — в следующем ходе
-  // он уже часть входа. Показываем занятое окно отдельно от накопленного выхода.
-  const used = Math.min(limit, Math.max(inTok, cached));
-  const fresh = Math.max(0, inTok - cached);
-  const pct = limit > 0 ? Math.min(100, (used / limit) * 100) : 0;
-  const cost = costMicro / 1_000_000;
+  const b = breakdown;
+  const pct = limit > 0 ? Math.min(100, (b.total / limit) * 100) : 0;
+  const segs: Array<[string, number, string]> = [
+    ["prefix", b.prefix, "префикс"],
+    ["history", b.history, "история"],
+    ["tools", b.tools, "тулы"],
+    ["images", b.images, "картинки"],
+  ];
+  const fmt = (n: number) =>
+    n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k` : String(n);
   return (
     <div className="context">
       <div className="context__head">
         <b>окно</b>
         <span>
-          {used.toLocaleString("ru-RU")} / {(limit / 1000).toFixed(0)}k
+          {fmt(b.total)} / {fmt(limit)}
         </span>
-        <span>{pct.toFixed(1)}%</span>
+        <span>{pct.toFixed(0)}%</span>
       </div>
-      <div className="context__bar" title={`вход ${inTok} · кеш ${cached} · выход ${outTok}`}>
-        <span
-          className="context__seg"
-          data-kind="cached"
-          style={{ width: `${(cached / limit) * 100}%` }}
-        />
-        <span
-          className="context__seg"
-          data-kind="in"
-          style={{ width: `${(fresh / limit) * 100}%` }}
-        />
-        <span
-          className="context__seg"
-          data-kind="out"
-          style={{ width: `${Math.min(20, (outTok / limit) * 100)}%` }}
-        />
+      <div
+        className="context__bar"
+        title={segs.map(([, n, t]) => `${t} ${Math.round(n)}`).join(" · ")}
+      >
+        {segs.map(([kind, n]) => (
+          <span
+            key={kind}
+            className="context__seg"
+            data-kind={kind}
+            style={{ width: `${limit > 0 ? (n / limit) * 100 : 0}%` }}
+          />
+        ))}
         <span className="context__seg" data-kind="free" />
       </div>
       <div className="context__legend">
-        <span>
-          <i data-kind="cached" />
-          кеш {cached.toLocaleString("ru-RU")}
-        </span>
-        <span>
-          <i data-kind="in" />
-          свежий {fresh.toLocaleString("ru-RU")}
-        </span>
-        <span>
-          <i data-kind="out" />
-          выход {outTok.toLocaleString("ru-RU")}
-        </span>
+        {segs.map(([kind, n, title]) => (
+          <span key={kind} title={`${Math.round(n)} токенов`}>
+            <i data-kind={kind} />
+            {title} {fmt(n)}
+          </span>
+        ))}
         <span>
           <i data-kind="free" />
-          свободно
+          свободно {fmt(Math.max(0, limit - b.total))}
         </span>
         <span>
-          {turns} ход. · ${cost < 0.01 ? cost.toFixed(4) : cost.toFixed(3)}
+          {b.messages} сообщ. · {b.tool_calls} вызовов
         </span>
       </div>
     </div>
@@ -657,9 +653,12 @@ function Agents({
   active: string | null;
   onPick: (id: string) => void;
 }) {
-  const [onlyChildren, setOnlyChildren] = useState(false);
-  const children = sessions.filter((s) => s.parent);
-  const roots = children.filter((s) => !onlyChildren || !active || s.parent === active);
+  // «Окна» — про выбранную сессию: показываем только её подагентов. Список
+  // подагентов в других сессиях — шум, у него есть сам rail и поиск.
+  const roots = active ? sessions.filter((s) => s.parent === active) : [];
+  if (!active) {
+    return <div className="dock__empty">сессия не выбрана.</div>;
+  }
   if (roots.length === 0) {
     return (
       <div className="dock__empty">
@@ -672,13 +671,7 @@ function Agents({
   return (
     <div className="agents">
       <div className="agents__filter">
-        <button
-          className="ghost"
-          onClick={() => setOnlyChildren((v) => !v)}
-          aria-pressed={onlyChildren}
-        >
-          {onlyChildren ? "только дети этой сессии" : "все подагенты"}
-        </button>
+        <span>подагенты этой сессии</span>
         <span className="agents__count">{roots.length}</span>
       </div>
       {roots.map((s) => (
@@ -751,6 +744,10 @@ export default function App() {
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<SearchHit[]>([]);
   const [searching, setSearching] = useState(false);
+  const [ctx, setCtx] = useState<{ breakdown: WindowBreakdown | null; limit: number }>({
+    breakdown: null,
+    limit: CTX_LIMIT,
+  });
   const fileInput = useRef<HTMLInputElement>(null);
   const feedRef = useRef<HTMLDivElement>(null);
 
@@ -761,16 +758,22 @@ export default function App() {
     applyTheme(theme);
   }, [theme]);
 
-  /** Выбор сессии: пушим запись в историю, чтобы работали вперёд/назад. */
+  /**
+   * Выбор сессии: адрес обновляем через `replaceState`.
+   *
+   * `pushState` на каждый клик по списку забивал историю браузера — «назад»
+   * приходилось щёлкать десятки раз. Одна запись на загрузку страницы: внутри
+   * неё сессия переключается без роста истории, а «назад» возвращает туда, где
+   * человек был до прихода в приложение.
+   */
   const select = useCallback((id: string | null) => {
     setActive(id);
     setRailOpen(false);
     const url = new URL(location.href);
     if (id) url.searchParams.set("session", id);
     else url.searchParams.delete("session");
-    // `pushState` вместо роутера: страница одна, состояние целиком в URL.
     if (decodeURIComponent(location.href) !== url.toString()) {
-      history.pushState({ session: id }, "", url);
+      history.replaceState({ session: id }, "", url);
     }
   }, []);
 
@@ -781,7 +784,7 @@ export default function App() {
     return () => window.removeEventListener("popstate", onPop);
   }, []);
 
-  // Первая загрузка без `?session=`: подставляем свежую сессию в адрес через
+  // Первая загрузка без `?session=`: подставляем сессию в адрес через
   // replaceState — это не отдельная запись истории, назад с неё не листают.
   useEffect(() => {
     if (!active) return;
@@ -932,6 +935,25 @@ export default function App() {
     const el = feedRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [msgs, stream.content, stream.reasoning]);
+
+  // Расклад окна: считает ядро по проекции, обновляем на смену сессии и после
+  // каждого хода — в ходе он устаревает.
+  useEffect(() => {
+    setCtx({ breakdown: null, limit: CTX_LIMIT });
+    if (!active) return;
+    let alive = true;
+    api
+      .context(active)
+      .then((c) => {
+        if (alive) setCtx({ breakdown: c.breakdown, limit: c.limit || CTX_LIMIT });
+      })
+      .catch(() => {
+        /* закрытая/удалённая сессия — оставляем пустой расклад */
+      });
+    return () => {
+      alive = false;
+    };
+  }, [active, msgs.length, running]);
 
   // Поиск по журналам: дебаунс 300 мс, чтобы не дёргать ядро на каждую букву.
   useEffect(() => {
@@ -1525,7 +1547,7 @@ export default function App() {
       <div className="grip grip--dock" title="тяни · двойной клик — сброс" {...dock.gripProps} />
 
       <aside className="dock" aria-label="dock">
-        <ContextWindow msgs={msgs} limit={CTX_LIMIT} />
+        {active && <ContextWindow breakdown={ctx.breakdown} limit={ctx.limit} />}
         <Dock
           tab={dockTab}
           setTab={setDockTab}
@@ -1539,7 +1561,7 @@ export default function App() {
       <aside className="dock dock--sheet" data-open={dockOpen} aria-label="dock">
         {dockOpen && (
           <>
-            <ContextWindow msgs={msgs} limit={CTX_LIMIT} />
+            {active && <ContextWindow breakdown={ctx.breakdown} limit={ctx.limit} />}
             <Dock
               tab={dockTab}
               setTab={setDockTab}

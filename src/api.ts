@@ -68,6 +68,17 @@ export interface TranscriptMessage {
   usage?: Usage;
 }
 
+/** Расклад рабочего окна сессии — считает ядро по проекции промпта. */
+export interface WindowBreakdown {
+  total: number;
+  prefix: number;
+  history: number;
+  tools: number;
+  images: number;
+  messages: number;
+  tool_calls: number;
+}
+
 export interface SearchHit {
   id: string;
   title?: string;
@@ -149,6 +160,9 @@ export const api = {
     }),
 
   model: () => j<{ model: string }>("/v1/model"),
+
+  context: (id: string) =>
+    j<{ breakdown: WindowBreakdown; limit: number }>(`/v1/sessions/${id}/context`),
 
   search: (q: string, limit = 30) =>
     j<{ hits: SearchHit[] }>(`/v1/search?q=${encodeURIComponent(q)}&limit=${limit}`),

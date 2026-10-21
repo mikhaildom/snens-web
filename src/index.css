@@ -397,35 +397,37 @@ textarea:focus-visible,
   gap: calc(var(--step) * 2.5);
 }
 
-.msg {
+.msg,
+.steps {
   --rule: var(--line);
   border-left: var(--bar) solid var(--rule);
   padding-left: calc(var(--step) * 1.25);
-  max-width: 88ch;
+  width: 100%;
+}
+
+/* Читаемую ширину держит только текст. Шапки, блоки тулов и пачки шагов идут
+   на всю ленту — иначе время у пользователя и у тула оказывается в разных
+   столбцах. */
+.msg__main > .markdown,
+.msg__main > details.reasoning,
+.step > .markdown,
+.step > details.reasoning,
+.tool__body {
+  max-width: 92ch;
 }
 
 .msg--user {
   --rule: var(--accent);
 }
 
-.msg--user .msg__body .text {
-  white-space: pre-wrap;
-}
-
 .msg--tool,
 .msg--system {
   --rule: var(--hair);
-  max-width: none;
 }
 
-.msg--approval {
-  --rule: var(--accent);
-  max-width: 88ch;
-}
-
+.msg--approval,
 .msg--error {
   --rule: var(--accent);
-  max-width: 88ch;
 }
 
 .msg--error .msg__head .who {
@@ -438,29 +440,8 @@ textarea:focus-visible,
   margin-top: calc(var(--step) * 0.75);
 }
 
-.msg__toggle {
-  display: block;
-  width: 100%;
-  border: 0;
-  background: transparent;
-  padding: 0;
-  text-align: left;
-  color: inherit;
-}
-
-.msg__toggle:hover {
-  background: var(--paper-2);
-  color: inherit;
-}
-
-.msg__body .reasoning {
-  color: var(--ink-2);
-  white-space: pre-wrap;
-}
-
-.msg__body .text {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
+.msg__main > * + * {
+  margin-top: calc(var(--step) * 0.75);
 }
 
 .dock__empty {
@@ -474,6 +455,8 @@ textarea:focus-visible,
   color: var(--accent);
   opacity: 1;
 }
+
+/* ── шапка сообщения: одна строка, время всегда справа ─── */
 
 .msg__head {
   display: flex;
@@ -500,29 +483,323 @@ textarea:focus-visible,
   color: var(--ink-2);
 }
 
-.msg__head time {
+.msg__head time,
+.steps__head time {
   margin-left: auto;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
-.msg__body {
-  white-space: normal;
+/* ── свёрнутая пачка шагов ─────────────────────────────── */
+
+.steps {
+  --rule: var(--hair);
+}
+
+.steps__head {
+  display: flex;
+  align-items: baseline;
+  gap: calc(var(--step) * 0.75);
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ink-2);
+  text-align: left;
+}
+
+.steps__head:hover {
+  background: var(--paper-2);
+  color: var(--ink);
+}
+
+.steps__caret {
+  color: var(--accent);
+}
+
+.steps__dim {
+  color: var(--ink-2);
+}
+
+.steps__body {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--step) * 1.5);
+  margin-top: calc(var(--step) * 0.75);
+  padding-left: calc(var(--step) * 0.75);
+  border-left: 1px solid var(--hair);
+}
+
+.step > * + * {
+  margin-top: calc(var(--step) * 0.5);
+}
+
+/* ── вызов тула: вызов и результат — один блок ─────────── */
+
+.tool {
+  border: 1px solid var(--hair);
+  background: var(--paper-2);
+}
+
+.tool[data-state="error"] {
+  border-color: var(--accent);
+}
+
+.tool__head {
+  display: flex;
+  align-items: baseline;
+  gap: calc(var(--step) * 0.5);
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 1px calc(var(--step) * 0.5);
+  font-size: var(--fs-xs);
+  text-transform: none;
+  letter-spacing: 0;
+  text-align: left;
+  color: var(--ink);
+}
+
+.tool__head:hover {
+  background: var(--paper-3);
+  color: var(--ink);
+}
+
+.tool__mark {
+  color: var(--ok);
+  width: 1ch;
+}
+
+.tool[data-state="error"] .tool__mark {
+  color: var(--accent);
+}
+
+.tool[data-state="running"] .tool__mark {
+  color: var(--accent);
+  animation: blink 1s steps(2, start) infinite;
+}
+
+.tool__name {
+  font-weight: 700;
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+
+.tool__arg {
+  color: var(--ink-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  /* min-width: 0 — иначе флекс-элемент не сжимается и выдавливает имя тула */
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.tool__meta {
+  margin-left: auto;
+  display: flex;
+  gap: calc(var(--step) * 0.5);
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.tool__ms {
+  color: var(--ink);
+}
+
+.tool__body {
+  border-top: 1px solid var(--hair);
+  padding: calc(var(--step) * 0.5);
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--step) * 0.5);
+  min-width: 0;
+}
+
+.tool__body .code {
+  background: var(--paper);
+  border-left: 0;
+  padding: calc(var(--step) * 0.5);
+  max-height: 24em;
+  overflow: auto;
+}
+
+.tool__out {
+  color: var(--ink-2);
+}
+
+/* ── вложения-картинки ─────────────────────────────────── */
+
+.shots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(var(--step) * 0.5);
+}
+
+.shots img {
+  max-width: min(100%, 320px);
+  max-height: 320px;
+  border: 1px solid var(--hair);
+  background: var(--paper-3);
+  display: block;
+}
+
+/* ── reasoning, свёрнутый по умолчанию ─────────────────── */
+
+details.reasoning {
+  border-left: 1px solid var(--hair);
+  padding-left: calc(var(--step) * 0.75);
+  color: var(--ink-2);
+  font-size: var(--fs-sm);
+}
+
+details.reasoning > summary {
+  cursor: pointer;
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ink-2);
+  list-style: none;
+}
+
+details.reasoning > summary::before {
+  content: "▸ ";
+  color: var(--accent);
+}
+
+details.reasoning[open] > summary::before {
+  content: "▾ ";
+}
+
+details.reasoning > summary::-webkit-details-marker {
+  display: none;
+}
+
+details.reasoning > div {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin-top: 2px;
+}
+
+/* ── markdown ──────────────────────────────────────────── */
+
+.markdown {
   overflow-wrap: anywhere;
 }
 
-.msg__body > * + * {
-  margin-top: calc(var(--step) * 0.75);
+.markdown > *:first-child {
+  margin-top: 0;
 }
 
-pre.code {
+.markdown > *:last-child {
+  margin-bottom: 0;
+}
+
+.markdown p {
+  margin: 0 0 calc(var(--step) * 0.5);
+}
+
+.markdown h1,
+.markdown h2,
+.markdown h3,
+.markdown h4 {
+  margin: calc(var(--step) * 0.75) 0 calc(var(--step) * 0.5);
+  font-size: var(--fs-md);
+  line-height: 1.3;
+}
+
+.markdown h1 {
+  font-size: var(--fs-lg);
+}
+
+.markdown ul,
+.markdown ol {
+  margin: 0 0 calc(var(--step) * 0.5);
+  padding-left: calc(var(--step) * 2);
+}
+
+.markdown li {
+  margin: 1px 0;
+}
+
+.markdown li > p {
   margin: 0;
-  padding: calc(var(--step) * 0.75) var(--step);
-  background: var(--paper-2);
+}
+
+.markdown a {
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 2px;
+}
+
+.markdown a:hover {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.markdown blockquote {
+  margin: 0 0 calc(var(--step) * 0.5);
+  padding-left: calc(var(--step) * 0.75);
   border-left: var(--bar) solid var(--hair);
-  overflow-x: auto;
+  color: var(--ink-2);
+}
+
+.markdown code {
+  background: var(--paper-2);
+  padding: 0 2px;
   font-size: var(--fs-sm);
-  line-height: 1.45;
-  white-space: pre;
+}
+
+.markdown pre.code {
+  margin: 0 0 calc(var(--step) * 0.5);
+}
+
+.markdown pre.code code {
+  background: transparent;
+  padding: 0;
+  font-size: inherit;
+}
+
+.markdown table {
+  border-collapse: collapse;
+  margin: 0 0 calc(var(--step) * 0.5);
+  font-size: var(--fs-sm);
+  display: block;
+  overflow-x: auto;
+}
+
+.markdown th,
+.markdown td {
+  border: 1px solid var(--hair);
+  padding: 2px calc(var(--step) * 0.5);
+  text-align: left;
+}
+
+.markdown th {
+  background: var(--paper-2);
+}
+
+.markdown hr {
+  border: 0;
+  border-top: var(--bar) solid var(--hair);
+  margin: calc(var(--step) * 0.75) 0;
+}
+
+.markdown .math-display {
+  display: block;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: calc(var(--step) * 0.25) 0;
+}
+
+/* KaTeX: свойства брутализма — без радиусов, наследуем цвет темы */
+.katex {
+  color: inherit;
 }
 
 pre.code .add {
@@ -535,7 +812,7 @@ pre.code .dim {
   color: var(--ink-2);
 }
 
-.msg--pending .msg__body > *:last-child::after {
+.msg--pending .msg__main > *:last-child::after {
   content: "▊";
   animation: blink 1s steps(2, start) infinite;
 }
@@ -705,6 +982,8 @@ pre.code .dim {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .win {
@@ -738,6 +1017,7 @@ pre.code .dim {
 }
 
 .win__state {
+  flex: 0 0 auto;
   margin-left: auto;
   font-size: var(--fs-xs);
   color: var(--ink-2);
@@ -871,4 +1151,35 @@ pre.code .dim {
   color: var(--ink-2);
   font-size: var(--fs-xs);
   padding: 0 2px;
+}
+
+/* ── вложения человека: голосовые и видео ──────────────── */
+
+.shots video {
+  max-width: min(100%, 360px);
+  border: 1px solid var(--hair);
+  background: var(--paper-3);
+}
+
+.voice {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border: 1px solid var(--hair);
+  background: var(--paper-2);
+  padding: calc(var(--step) * 0.5);
+}
+
+.voice audio {
+  width: min(100%, 320px);
+  height: 32px;
+  display: block;
+}
+
+.voice figcaption {
+  font-size: var(--fs-xs);
+  color: var(--ink-2);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
 }

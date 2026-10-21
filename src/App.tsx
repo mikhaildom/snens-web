@@ -2,10 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   api,
   subscribe,
+  type Part,
   type SessionInfo,
   type SurfaceEvent,
+  type ToolCall,
   type TranscriptMessage,
 } from "./api";
+import { Markdown } from "./markdown";
 import { applyTheme, initialTheme, type Theme } from "./theme";
 import { useResize } from "./useResize";
 
@@ -15,12 +18,13 @@ interface ToolRun {
   callId: string;
   name: string;
   args: string;
-  state: "running" | "ok" | "error" | "cancelled";
+  state: "running" | "ok" | "error";
   exit?: number;
   preview: string;
   ms?: number;
   started?: number;
-  done?: number;
+  parts?: Part[];
+  ts?: number;
 }
 
 interface Approval {
@@ -32,106 +36,253 @@ interface Approval {
 const time = (ts: number) =>
   new Date(ts * 1000).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
 
+const dur = (ms?: number) => (ms == null ? "" : ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${ms}ms`);
+
+/** «1 шаг / 2 шага / 5 шагов». */
+function stepsWord(n: number): string {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return "шаг";
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return "шага";
+  return "шагов";
+}
+
+/** Аргументы вызова одной строкой: разбираем JSON, но не падаем на не-JSON. */
 function shortArgs(raw: string): string {
   try {
     const v = JSON.parse(raw);
-    const first =
-      v.cmd ?? v.path ?? v.url ?? v.query ?? v.args?.[0] ?? v.text ?? Object.values(v)[0];
+    const first = v.cmd ?? v.path ?? v.url ?? v.query ?? v.args?.[0] ?? v.text ?? Object.values(v)[0];
     const s = Array.isArray(first) ? first.join(" ") : String(first ?? "");
-    return s.length > 72 ? `${s.slice(0, 72)}…` : s;
+    return s.length > 80 ? `${s.slice(0, 80)}…` : s;
   } catch {
-    return raw.slice(0, 72);
+    return raw.length > 80 ? `${raw.slice(0, 80)}…` : raw;
   }
 }
+
+const fileUrl = (session: string, path: string) =>
+  `/api/v1/sessions/${session}/file?path=${encodeURIComponent(path)}`;
 
 /* ── лента ──────────────────────────────────────────────── */
 
-function Code({ code }: { code: string }) {
+/**
+ * Вложения, которые можно увидеть и услышать. Картинки — то, что смотрел агент
+ * (`view`) или что приложил человек; голосовые — с проигрыванием, потому что
+ * распознавание живёт в ядре, а исходник нужно уметь переслушать.
+ */
+function Attachments({ session, parts }: { session: string; parts?: Part[] }) {
+  const visual = (parts ?? []).filter((p) => p.kind === "image" || p.kind === "video");
+  const audio = (parts ?? []).filter((p) => p.kind === "audio");
+  if (visual.length === 0 && audio.length === 0) return null;
   return (
-    <pre className="code">
-      {code.split("\n").map((line, i) => (
-        <div key={i}>{line || " "}</div>
+    <div className="shots">
+      {visual.map((p) =>
+        p.kind === "image" ? (
+          <a key={p.path} href={fileUrl(session, p.path)} target="_blank" rel="noreferrer">
+            <img
+              src={fileUrl(session, p.path)}
+              alt={p.path.split("/").pop() ?? "image"}
+              width={p.width || undefined}
+              height={p.height || undefined}
+              loading="lazy"
+              onError={(e) => {
+                (e.currentTarget as HTMLImageElement).closest("a")!.style.display = "none";
+              }}
+            />
+          </a>
+        ) : (
+          <video key={p.path} src={fileUrl(session, p.path)} controls preload="metadata" />
+        ),
+      )}
+      {audio.map((p) => (
+        <figure className="voice" key={p.path}>
+          <audio src={fileUrl(session, p.path)} controls preload="metadata" />
+          <figcaption>
+            {p.kind === "audio" ? "голосовое" : p.kind} · {(p.bytes / 1024).toFixed(0)} КБ
+          </figcaption>
+        </figure>
       ))}
-    </pre>
+    </div>
   );
 }
 
-function Turn({ m }: { m: TranscriptMessage }) {
-  const [open, setOpen] = useState(false);
-  const head = (
-    <header className="msg__head">
-      <span className="who">{m.role === "user" ? "you" : m.role === "tool" ? m.name ?? "tool" : "snens"}</span>
-      {m.role === "tool" && <span>exit {m.exit ?? "?"}</span>}
-      {m.role === "assistant" && m.tool_calls?.length ? (
-        <span>
-          {m.tool_calls.length} {m.tool_calls.length === 1 ? "тул" : "тулов"}
-        </span>
-      ) : null}
-      <time>{time(m.ts)}</time>
-    </header>
+const MARK: Record<ToolRun["state"], string> = { ok: "✓", error: "×", running: "●" };
+
+function ToolBlock({ t, session, defaultOpen }: { t: ToolRun; session: string; defaultOpen?: boolean }) {
+  // Тул с картинками раскрыт сразу: смысл вложения — увидеть, что смотрел агент,
+  // а не разворачивать блок руками.
+  const hasMedia = Boolean(
+    t.parts?.some((p) => p.kind === "image" || p.kind === "video" || p.kind === "audio"),
   );
-
-  if (m.role === "tool") {
-    return (
-      <article className="msg msg--tool">
-        <button className="msg__toggle" onClick={() => setOpen((v) => !v)}>
-          {head}
-        </button>
-        {open && m.content && <div className="msg__body">{m.content}</div>}
-      </article>
-    );
-  }
-
+  const [open, setOpen] = useState(!!defaultOpen || hasMedia);
   return (
-    <article className={`msg msg--${m.role}`}>
-      {head}
-      <div className="msg__body">
-        {m.reasoning && <div className="reasoning">{m.reasoning}</div>}
-        {m.content && <div className="text">{m.content}</div>}
-        {m.tool_calls?.map((c) => (
-          <Code key={c.id} code={`${c.function.name} ${shortArgs(c.function.arguments)}`} />
-        ))}
+    <div className="tool" data-state={t.state}>
+      <button className="tool__head" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
+        <span className="tool__mark">{MARK[t.state]}</span>
+        <span className="tool__name">{t.name}</span>
+        <span className="tool__arg">{shortArgs(t.args)}</span>
+        <span className="tool__meta">
+          {t.exit != null && t.exit !== 0 ? `exit ${t.exit}` : ""}
+          {t.ms != null && <span className="tool__ms">{dur(t.ms)}</span>}
+          {t.ts != null && <time>{time(t.ts)}</time>}
+        </span>
+      </button>
+      {open && (
+        <div className="tool__body">
+          {t.args && <pre className="code">{t.args}</pre>}
+          {t.preview && <pre className="code tool__out">{t.preview}</pre>}
+          <Attachments session={session} parts={t.parts} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Reasoning({ text }: { text: string }) {
+  return (
+    <details className="reasoning">
+      <summary>reasoning</summary>
+      <div>{text}</div>
+    </details>
+  );
+}
+
+/** Один шаг модели: текст ответа, reasoning (свёрнут) и его вызовы тулов. */
+function Step({
+  m,
+  tools,
+  session,
+}: {
+  m: TranscriptMessage;
+  tools: ToolRun[];
+  session: string;
+}) {
+  const hasBody = Boolean(m.content) || tools.length > 0 || Boolean(m.reasoning);
+  if (!hasBody) return null;
+  return (
+    <div className="step">
+      <header className="msg__head">
+        <span className="who">snens</span>
+        {tools.length > 0 && <span>{tools.length} тул.</span>}
+        <time>{time(m.ts)}</time>
+      </header>
+      {m.content && <Markdown text={m.content} />}
+      {m.reasoning && <Reasoning text={m.reasoning} />}
+      {tools.map((t) => (
+        <ToolBlock key={t.callId} t={t} session={session} />
+      ))}
+    </div>
+  );
+}
+
+function UserTurn({ m, session }: { m: TranscriptMessage; session: string }) {
+  return (
+    <article className="msg msg--user">
+      <header className="msg__head">
+        <span className="who">you</span>
+        {m.source && m.source !== "surface" && <span>{m.source}</span>}
+        <time>{time(m.ts)}</time>
+      </header>
+      <div className="msg__main">
+        {m.content && <Markdown text={m.content} />}
+        <Attachments session={session} parts={m.parts} />
       </div>
     </article>
   );
 }
 
-function Live({ content, reasoning }: { content: string; reasoning: string }) {
-  if (!content && !reasoning) return null;
+function Live({
+  content,
+  reasoning,
+  tools,
+  session,
+}: {
+  content: string;
+  reasoning: string;
+  tools: ToolRun[];
+  session: string;
+}) {
+  if (!content && !reasoning && tools.length === 0) return null;
   return (
     <article className="msg msg--assistant msg--pending">
       <header className="msg__head">
         <span className="who">snens</span>
         <span>стрим</span>
       </header>
-      <div className="msg__body">
-        {reasoning && <div className="reasoning">{reasoning}</div>}
-        {content && <div className="text">{content}</div>}
+      <div className="msg__main">
+        {content && <Markdown text={content} />}
+        {reasoning && <Reasoning text={reasoning} />}
+        {tools.map((t) => (
+          <ToolBlock key={t.callId} t={t} session={session} defaultOpen={false} />
+        ))}
       </div>
     </article>
   );
 }
 
+/**
+ * Промежуточные шаги между сообщением человека и финальным ответом свёрнуты
+ * в одну строку: «4 шага · 2 тула · 9.3s». Финальный ответ модели остаётся
+ * видимым — он и есть результат хода.
+ */
+function Steps({
+  steps,
+  toolsByStep,
+  session,
+}: {
+  steps: TranscriptMessage[];
+  toolsByStep: Map<number, ToolRun[]>;
+  session: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const toolCount = steps.reduce((n, m) => n + (toolsByStep.get(m.seq)?.length ?? 0), 0);
+  const ms = steps.reduce(
+    (n, m) => n + (toolsByStep.get(m.seq) ?? []).reduce((k, t) => k + (t.ms ?? 0), 0),
+    0,
+  );
+  return (
+    <section className="steps" data-open={open}>
+      <button className="steps__head" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
+        <span className="steps__caret">{open ? "▾" : "▸"}</span>
+        <span>
+          {steps.length} {stepsWord(steps.length)}
+        </span>
+        {toolCount > 0 && <span className="steps__dim">{toolCount} тул.</span>}
+        {ms > 0 && <span className="steps__dim">{dur(ms)}</span>}
+        <time>{time(steps[steps.length - 1].ts)}</time>
+      </button>
+      {open && (
+        <div className="steps__body">
+          {steps.map((m) => (
+            <Step key={m.seq} m={m} tools={toolsByStep.get(m.seq) ?? []} session={session} />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 /* ── док ────────────────────────────────────────────────── */
 
-function ToolRow({ t }: { t: ToolRun }) {
-  const [open, setOpen] = useState(false);
+function ToolRow({ t, session }: { t: ToolRun; session: string }) {
+  const hasMedia = Boolean(
+    t.parts?.some((p) => p.kind === "image" || p.kind === "video" || p.kind === "audio"),
+  );
+  const [open, setOpen] = useState(hasMedia);
   return (
     <section className="win">
       <button className="win__bar" onClick={() => setOpen((v) => !v)}>
-        <span className="win__kind">
-          {t.state === "ok" ? "✓" : t.state === "error" ? "×" : t.state === "cancelled" ? "−" : "●"}
-        </span>
+        <span className="win__kind">{MARK[t.state]}</span>
         <span>{t.name}</span>
         <span className="win__arg">{shortArgs(t.args)}</span>
         <span className="win__state" data-state={t.state}>
-          {t.ms != null ? `${(t.ms / 1000).toFixed(1)}s` : t.state}
+          {t.ms != null ? dur(t.ms) : t.state}
         </span>
       </button>
       {open && (
         <div className="win__body">
-          <pre>{t.args}</pre>
+          {t.args && <pre>{t.args}</pre>}
           {t.preview && <pre>{t.preview}</pre>}
+          <Attachments session={session} parts={t.parts} />
         </div>
       )}
     </section>
@@ -142,11 +293,13 @@ function Dock({
   tab,
   setTab,
   tools,
+  session,
   onClose,
 }: {
   tab: DockTab;
   setTab: (t: DockTab) => void;
   tools: ToolRun[];
+  session: string;
   onClose?: () => void;
 }) {
   const running = tools.filter((t) => t.state === "running").length;
@@ -176,7 +329,7 @@ function Dock({
         ) : tools.length === 0 ? (
           <div className="dock__empty">в этой сессии тулы ещё не звались.</div>
         ) : (
-          tools.map((t) => <ToolRow key={t.callId} t={t} />)
+          tools.map((t) => <ToolRow key={t.callId} t={t} session={session} />)
         )}
       </div>
     </>
@@ -215,7 +368,7 @@ export default function App() {
   const [active, setActive] = useState<string | null>(null);
   const [msgs, setMsgs] = useState<TranscriptMessage[]>([]);
   const [stream, setStream] = useState({ content: "", reasoning: "" });
-  const [live, setLive] = useState<Record<string, ToolRun>>({});
+  const [liveTools, setLiveTools] = useState<Record<string, ToolRun>>({});
   const [running, setRunning] = useState(false);
   const [runId, setRunId] = useState<string | null>(null);
   const [model, setModel] = useState("");
@@ -224,21 +377,17 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState("");
   const [railOpen, setRailOpen] = useState(false);
-  const [dockOpen, setDockOpen] = useState(() =>
-    new URLSearchParams(location.search).has("dock"),
-  );
+  const [dockOpen, setDockOpen] = useState(() => new URLSearchParams(location.search).has("dock"));
   const [dockTab, setDockTab] = useState<DockTab>("tools");
-  const [showAll, setShowAll] = useState(false);
   const feedRef = useRef<HTMLDivElement>(null);
 
-  const rail = useResize("snens-rail-w", 224, 176, 380, 1);
-  const dock = useResize("snens-dock-w", 320, 240, 620, -1);
+  const rail = useResize("snens-rail-w", 248, 176, 420, 1);
+  const dock = useResize("snens-dock-w", 360, 240, 960, -1);
 
   useEffect(() => {
     applyTheme(theme);
   }, [theme]);
 
-  /* список сессий */
   const loadSessions = useCallback(async () => {
     try {
       const { sessions } = await api.sessions();
@@ -265,22 +414,15 @@ export default function App() {
     };
   }, [loadSessions]);
 
-  /* история + SSE выбранной сессии */
-  const reload = useCallback(async (id: string) => {
-    const h = await api.history(id);
-    setMsgs(h.messages);
-    return h.cursor;
-  }, []);
-
   useEffect(() => {
     if (!active) return;
     let closed = false;
+    let stop: (() => void) | undefined;
     setMsgs([]);
-    setLive({});
+    setLiveTools({});
     setStream({ content: "", reasoning: "" });
     setApproval(null);
 
-    let stop: (() => void) | undefined;
     (async () => {
       try {
         const h = await api.history(active);
@@ -288,7 +430,8 @@ export default function App() {
         setMsgs(h.messages);
         // ?nostream=1 — статичный снимок истории без SSE (скриншоты, отладка)
         const noStream = new URLSearchParams(location.search).has("nostream");
-        if (!noStream) stop = subscribe(active, h.cursor, (e: SurfaceEvent) => {
+        if (noStream) return;
+        stop = subscribe(active, h.cursor, (e: SurfaceEvent) => {
           switch (e.type) {
             case "run.started":
               setRunning(true);
@@ -307,7 +450,7 @@ export default function App() {
             }
             case "tool.started": {
               const callId = String(e.call_id ?? "");
-              setLive((prev) => ({
+              setLiveTools((prev) => ({
                 ...prev,
                 [callId]: {
                   callId,
@@ -322,7 +465,7 @@ export default function App() {
             }
             case "tool.completed": {
               const callId = String(e.call_id ?? "");
-              setLive((prev) => {
+              setLiveTools((prev) => {
                 const old = prev[callId];
                 const exit = Number(e.exit ?? 0);
                 const done = Date.now();
@@ -336,7 +479,6 @@ export default function App() {
                     exit,
                     preview: String(e.preview ?? ""),
                     started: old?.started,
-                    done,
                     ms: old?.started ? done - old.started : undefined,
                   },
                 };
@@ -361,7 +503,10 @@ export default function App() {
               if (status !== "ok" && e.error) setError(`${status}: ${e.error}`);
               // канонический транскрипт — из журнала, а не из стрима
               api.history(active).then((x) => {
-                if (!closed) setMsgs(x.messages);
+                if (!closed) {
+                  setMsgs(x.messages);
+                  setLiveTools({});
+                }
               });
               break;
             }
@@ -376,20 +521,22 @@ export default function App() {
       closed = true;
       stop?.();
     };
-  }, [active, reload]);
+  }, [active]);
 
   useEffect(() => {
     const el = feedRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [msgs, stream.content, stream.reasoning]);
 
-  /* тулы сессии: из журнала + живые события */
+  /** Тулы из журнала: вызов + его результат сводятся в один ToolRun. */
   const tools = useMemo<ToolRun[]>(() => {
     const out: ToolRun[] = [];
     const byId = new Map<string, ToolRun>();
+    let lastAssistant: ToolRun[] = [];
     for (const m of msgs) {
-      if (m.role === "assistant" && m.tool_calls) {
-        for (const c of m.tool_calls) {
+      if (m.role === "assistant") {
+        lastAssistant = [];
+        for (const c of m.tool_calls ?? []) {
           const t: ToolRun = {
             callId: c.id,
             name: c.function.name,
@@ -399,6 +546,7 @@ export default function App() {
           };
           out.push(t);
           byId.set(c.id, t);
+          lastAssistant.push(t);
         }
       }
       if (m.role === "tool" && m.tool_call_id) {
@@ -408,31 +556,109 @@ export default function App() {
           t.state = exit === 0 ? "ok" : "error";
           t.exit = exit;
           t.preview = m.content ?? "";
-          t.name = m.name ?? t.name;
+          t.ms = m.ms;
+          t.parts = m.parts;
+          t.ts = m.ts;
+          if (m.name) t.name = m.name;
         } else {
-          out.push({
+          const orphan: ToolRun = {
             callId: m.tool_call_id,
             name: m.name ?? "tool",
             args: "",
             state: exit === 0 ? "ok" : "error",
             exit,
             preview: m.content ?? "",
-          });
+            ms: m.ms,
+            parts: m.parts,
+            ts: m.ts,
+          };
+          out.push(orphan);
+          lastAssistant.push(orphan);
         }
       }
     }
-    for (const t of Object.values(live)) {
+    for (const t of Object.values(liveTools)) {
       const idx = out.findIndex((x) => x.callId === t.callId);
       if (idx >= 0) out[idx] = t;
       else out.push(t);
     }
     return out;
-  }, [msgs, live]);
+  }, [msgs, liveTools]);
+
+  /** Раскладка ленты: сообщения человека отдельно, промежуточные шаги — пачкой. */
+  const blocks = useMemo(() => {
+    type Block =
+      | { kind: "user"; m: TranscriptMessage }
+      | { kind: "answer"; m: TranscriptMessage; tools: ToolRun[] }
+      | { kind: "steps"; steps: TranscriptMessage[]; tools: Map<number, ToolRun[]> };
+    const bySeq = new Map<number, ToolRun[]>();
+    const byCall = new Map<string, ToolRun>();
+    for (const t of tools) byCall.set(t.callId, t);
+    for (const m of msgs) {
+      if (m.role === "assistant") {
+        const list = (m.tool_calls ?? [])
+          .map((c: ToolCall) => byCall.get(c.id))
+          .filter((t): t is ToolRun => Boolean(t));
+        bySeq.set(m.seq, list);
+      }
+    }
+
+    const out: Block[] = [];
+    let run: TranscriptMessage[] = [];
+    const flush = () => {
+      if (run.length === 0) return;
+      // Финальный ответ: последний assistant с текстом и без вызовов тулов.
+      let answerIdx = -1;
+      for (let i = run.length - 1; i >= 0; i--) {
+        const m = run[i];
+        if (m.role === "assistant" && m.content && !m.tool_calls?.length) {
+          answerIdx = i;
+          break;
+        }
+      }
+      const answer = answerIdx >= 0 ? run[answerIdx] : undefined;
+      const steps = answerIdx >= 0 ? run.slice(0, answerIdx) : run;
+      // Рассуждение финального шага хронологически идёт ДО его текста, поэтому
+      // оно уезжает в группу промежуточных шагов, а не висит под ответом. Если
+      // группы нет (ход из одного сообщения) — reasoning остаётся при ответе.
+      const answerReasoning =
+        answer && steps.length > 0 && answer.reasoning
+          ? [{ ...answer, content: null } as TranscriptMessage]
+          : [];
+      const grouped = [...steps, ...answerReasoning];
+      if (grouped.length > 0) {
+        out.push({
+          kind: "steps",
+          steps: grouped,
+          tools: new Map(steps.map((m) => [m.seq, bySeq.get(m.seq) ?? []])),
+        });
+      }
+      if (answer) {
+        out.push({
+          kind: "answer",
+          m: answerReasoning.length > 0 ? { ...answer, reasoning: undefined } : answer,
+          tools: bySeq.get(answer.seq) ?? [],
+        });
+      }
+      run = [];
+    };
+    for (const m of msgs) {
+      if (m.role === "user") {
+        flush();
+        out.push({ kind: "user", m });
+      } else if (m.role === "assistant") {
+        // Результаты тулов в ленту отдельными шагами не идут: они уже влиты
+        // в свой ToolRun (вызов + результат одним блоком). Иначе текст `fetch`
+        // рендерился как markdown и тащил в чат все картинки со страницы.
+        run.push(m);
+      }
+    }
+    flush();
+    return out;
+  }, [msgs, tools]);
 
   const turns = msgs.filter((m) => m.role !== "tool").length;
   const current = sessions.find((s) => s.id === active);
-  const visible = showAll ? sessions : sessions.filter((s) => s.surface !== "legacy");
-  const legacyCount = sessions.length - visible.length;
 
   async function send() {
     const text = draft.trim();
@@ -451,6 +677,7 @@ export default function App() {
       setRunning(true);
       const h = await api.history(id);
       setMsgs(h.messages);
+      loadSessions();
     } catch (e) {
       setError(String(e instanceof Error ? e.message : e));
     }
@@ -492,14 +719,14 @@ export default function App() {
         </div>
 
         <div className="rail__section">
-          <span>sessions {visible.length}</span>
+          <span>sessions {sessions.length}</span>
           <button className="ghost" title="new session" onClick={newSession}>
             +
           </button>
         </div>
 
         <ul className="rail__list">
-          {visible.map((s) => (
+          {sessions.map((s) => (
             <li key={s.id}>
               <button
                 className="rail__item"
@@ -509,9 +736,9 @@ export default function App() {
                   setRailOpen(false);
                 }}
               >
-                {s.surface === "web" ? s.id.slice(0, 8) : s.id}
+                {s.title || s.id}
                 <small>
-                  {s.surface} · {s.state}
+                  {s.surface} · {s.state} · {s.id}
                 </small>
               </button>
             </li>
@@ -519,16 +746,6 @@ export default function App() {
         </ul>
 
         <div className="rail__foot">
-          {legacyCount > 0 && !showAll && (
-            <button className="ghost rail__more" onClick={() => setShowAll(true)}>
-              ещё {legacyCount} legacy-сессий
-            </button>
-          )}
-          {showAll && (
-            <button className="ghost rail__more" onClick={() => setShowAll(false)}>
-              скрыть legacy
-            </button>
-          )}
           <ThemeBar theme={theme} setTheme={setTheme} />
           <button className="solid" onClick={newSession}>
             new session
@@ -543,7 +760,7 @@ export default function App() {
           <button className="ghost burger" onClick={() => setRailOpen(true)} aria-label="sessions">
             ≡
           </button>
-          <span className="topbar__title">{current ? current.id : "новая сессия"}</span>
+          <span className="topbar__title">{current?.title || current?.id || "новая сессия"}</span>
           <div className="topbar__meta">
             <button className="ghost dock-toggle" onClick={() => setDockOpen(true)} aria-label="док">
               док
@@ -567,21 +784,47 @@ export default function App() {
           {loading && <div className="msg msg--system">загрузка…</div>}
           {!loading && msgs.length === 0 && (
             <div className="msg msg--system">
-              <div className="msg__body">пустая сессия — напиши первое сообщение.</div>
+              <div className="msg__main">пустая сессия — напиши первое сообщение.</div>
             </div>
           )}
-          {msgs.map((m) => (
-            <Turn key={m.seq} m={m} />
-          ))}
-          <Live content={stream.content} reasoning={stream.reasoning} />
+          {active &&
+            blocks.map((b, i) =>
+              b.kind === "user" ? (
+                <UserTurn key={`u${b.m.seq}`} m={b.m} session={active} />
+              ) : b.kind === "answer" ? (
+                <article className="msg msg--assistant" key={`a${b.m.seq}`}>
+                  <header className="msg__head">
+                    <span className="who">snens</span>
+                    <time>{time(b.m.ts)}</time>
+                  </header>
+                  <div className="msg__main">
+                    <Markdown text={b.m.content ?? ""} />
+                    {b.m.reasoning && <Reasoning text={b.m.reasoning} />}
+                    {b.tools.map((t) => (
+                      <ToolBlock key={t.callId} t={t} session={active} />
+                    ))}
+                  </div>
+                </article>
+              ) : (
+                <Steps key={`s${i}`} steps={b.steps} toolsByStep={b.tools} session={active} />
+              ),
+            )}
+          {active && (
+            <Live
+              content={stream.content}
+              reasoning={stream.reasoning}
+              tools={Object.values(liveTools)}
+              session={active}
+            />
+          )}
           {approval && (
             <article className="msg msg--approval">
               <header className="msg__head">
                 <span className="who">approval</span>
                 <span>sudo</span>
               </header>
-              <div className="msg__body">
-                <Code code={`${approval.command}\ncwd ${approval.cwd}`} />
+              <div className="msg__main">
+                <pre className="code">{`${approval.command}\ncwd ${approval.cwd}`}</pre>
                 <div className="approval__actions">
                   <button className="solid" onClick={() => decide(true)}>
                     разрешить один раз
@@ -599,7 +842,7 @@ export default function App() {
                   ×
                 </button>
               </header>
-              <div className="msg__body">{error}</div>
+              <div className="msg__main">{error}</div>
             </article>
           )}
         </div>
@@ -626,7 +869,9 @@ export default function App() {
         <div className="statusbar">
           <span className="sb--key" title={model}>
             <span className="sb--model-full">{model || "—"}</span>
-            <span className="sb--model-short">{model.split("/").pop()?.replace("deepseek-v4.1-", "dsv4-") ?? "—"}</span>
+            <span className="sb--model-short">
+              {model.split("/").pop()?.replace("deepseek-v4.1-", "dsv4-") ?? "—"}
+            </span>
           </span>
           <span className="sb--grow">
             {current ? `${current.surface} · ${current.state}` : "нет сессии"} · {turns} записей
@@ -639,7 +884,12 @@ export default function App() {
       <div className="grip grip--dock" title="тяни · двойной клик — сброс" {...dock.gripProps} />
 
       <aside className="dock" aria-label="dock">
-        <Dock tab={dockTab} setTab={setDockTab} tools={tools} />
+        <Dock
+          tab={dockTab}
+          setTab={setDockTab}
+          tools={tools}
+          session={active ?? ""}
+        />
       </aside>
 
       <aside className="dock dock--sheet" data-open={dockOpen} aria-label="dock">
@@ -648,6 +898,7 @@ export default function App() {
             tab={dockTab}
             setTab={setDockTab}
             tools={tools}
+            session={active ?? ""}
             onClose={() => setDockOpen(false)}
           />
         )}

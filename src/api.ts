@@ -9,6 +9,17 @@ export interface SessionInfo {
   surface: string;
   state: string;
   run_id: string | null;
+  /** Заголовок: сгенерированный ядром или первые слова первого сообщения. */
+  title?: string;
+}
+
+export interface Part {
+  kind: string;
+  path: string;
+  mime: string;
+  bytes: number;
+  width?: number;
+  height?: number;
 }
 
 export interface ToolCall {
@@ -28,6 +39,12 @@ export interface TranscriptMessage {
   tool_call_id?: string;
   name?: string;
   exit?: number;
+  /** Сколько занял вызов инструмента, мс. */
+  ms?: number;
+  /** Подставленный argv вызова (а не сырой JSON аргументов). */
+  argv?: string[];
+  /** Вложения инструмента: картинки, которые он положил в канал. */
+  parts?: Part[];
 }
 
 export interface SurfaceEvent {

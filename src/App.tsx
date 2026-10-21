@@ -269,7 +269,7 @@ export default function App() {
               onClick={() => setDockOpen(true)}
               aria-label="док"
             >
-              ▤
+              док
             </button>
             <span className="chip">
               <span className="dot" /> online

@@ -194,8 +194,11 @@ textarea:focus-visible,
 
 .dock-toggle {
   display: none;
-  font-size: var(--fs-lg);
-  line-height: 1;
+  border: var(--bar) solid var(--line);
+  padding: 0 4px;
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 
 /* ── rail ───────────────────────────────────────────────── */
@@ -717,31 +720,6 @@ pre.code .dim {
   padding: 1px 4px;
   font-size: var(--fs-xs);
   color: var(--ink-2);
-}
-
-.dock__log {
-  font-size: var(--fs-xs);
-  display: flex;
-  flex-direction: column;
-}
-
-.dock__log > div {
-  display: flex;
-  gap: 4px;
-  padding: 2px var(--step);
-  border-bottom: 1px solid var(--hair);
-}
-
-.dock__log b {
-  font-weight: 400;
-  color: var(--accent);
-}
-
-.dock__log i {
-  margin-left: auto;
-  color: var(--ink-2);
-  font-style: normal;
-  font-variant-numeric: tabular-nums;
 }
 
 /* ── адаптив ────────────────────────────────────────────── */

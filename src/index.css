@@ -408,10 +408,71 @@ textarea:focus-visible,
   --rule: var(--accent);
 }
 
+.msg--user .msg__body .text {
+  white-space: pre-wrap;
+}
+
 .msg--tool,
 .msg--system {
   --rule: var(--hair);
   max-width: none;
+}
+
+.msg--approval {
+  --rule: var(--accent);
+  max-width: 88ch;
+}
+
+.msg--error {
+  --rule: var(--accent);
+  max-width: 88ch;
+}
+
+.msg--error .msg__head .who {
+  color: var(--accent);
+}
+
+.approval__actions {
+  display: flex;
+  gap: calc(var(--step) * 0.5);
+  margin-top: calc(var(--step) * 0.75);
+}
+
+.msg__toggle {
+  display: block;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+  color: inherit;
+}
+
+.msg__toggle:hover {
+  background: var(--paper-2);
+  color: inherit;
+}
+
+.msg__body .reasoning {
+  color: var(--ink-2);
+  white-space: pre-wrap;
+}
+
+.msg__body .text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.dock__empty {
+  padding: var(--step);
+  font-size: var(--fs-sm);
+  color: var(--ink-2);
+  line-height: 1.6;
+}
+
+.dock__tabs button b.live {
+  color: var(--accent);
+  opacity: 1;
 }
 
 .msg__head {
@@ -445,7 +506,7 @@ textarea:focus-visible,
 }
 
 .msg__body {
-  white-space: pre-wrap;
+  white-space: normal;
   overflow-wrap: anywhere;
 }
 

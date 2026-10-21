@@ -1633,17 +1633,44 @@ pre.code .dim {
 
 /* ── расход хода ───────────────────────────────────────── */
 
+/* Цифры хода прячутся, пока не наведёшь на сообщение/шаг. Место под них
+   зарезервировано (visibility, а не display), чтобы шапка не дёргалась. */
 .usage {
   display: inline-flex;
-  align-items: baseline;
+  align-items: center;
   gap: 4px;
   font-size: var(--fs-xs);
   font-variant-numeric: tabular-nums;
   color: var(--ink-2);
+  visibility: hidden;
+}
+
+.msg:hover .usage,
+.msg:focus-within .usage,
+.step:hover .usage,
+.steps:hover .usage {
+  visibility: visible;
 }
 
 .usage__hit {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
   color: var(--ink);
+}
+
+/* Иконка базы: тонкий штрих, иначе на мелком размере сливается в плашку. */
+.usage__db {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.85;
+  /* Иконка не должна наследовать масштаб строки: на 10–12px любой лишний
+     штрих превращает базу в плашку. */
+  vector-effect: non-scaling-stroke;
+  flex: 0 0 auto;
 }
 
 .usage__cost {
@@ -1708,15 +1735,19 @@ pre.code .dim {
   flex: 0 0 auto;
 }
 
-.context__seg[data-kind="prefix"] {
+.context__seg[data-kind="system"] {
   background: var(--ink-2);
 }
 
-.context__seg[data-kind="history"] {
+.context__seg[data-kind="messages"] {
   background: var(--ink);
 }
 
-.context__seg[data-kind="tools"] {
+.context__seg[data-kind="toolCalls"] {
+  background: color-mix(in srgb, var(--accent) 55%, var(--paper));
+}
+
+.context__seg[data-kind="toolResults"] {
   background: var(--accent);
 }
 
@@ -1743,10 +1774,9 @@ pre.code .dim {
   white-space: nowrap;
 }
 
-/* Итоговая строка («N сообщений · M вызовов») — на всю ширину. */
-.context__legend > span:last-child {
-  grid-column: 1 / -1;
-  color: var(--ink);
+.context__foot {
+  font-size: var(--fs-xs);
+  color: var(--ink-2);
 }
 
 .context__legend i {
@@ -1757,15 +1787,19 @@ pre.code .dim {
   vertical-align: baseline;
 }
 
-.context__legend i[data-kind="prefix"] {
+.context__legend i[data-kind="system"] {
   background: var(--ink-2);
 }
 
-.context__legend i[data-kind="history"] {
+.context__legend i[data-kind="messages"] {
   background: var(--ink);
 }
 
-.context__legend i[data-kind="tools"] {
+.context__legend i[data-kind="toolCalls"] {
+  background: color-mix(in srgb, var(--accent) 55%, var(--paper));
+}
+
+.context__legend i[data-kind="toolResults"] {
   background: var(--accent);
 }
 

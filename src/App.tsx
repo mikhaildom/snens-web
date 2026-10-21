@@ -311,21 +311,40 @@ function Reasoning({ text }: { text: string }) {
 }
 
 /**
- * Расход хода: вход/кеш/выход и цена. Кеш-хит — доля входа, пришедшая из кеша:
- * именно она отличает «дорогой» ход от «дешёвого» при том же объёме.
+ * Расход хода: кеш-хит (с иконкой базы), кеш-мисс/выход и цена. Всё, кроме
+ * иконки с процентом, выводится целиком, но появляется только при ховере на
+ * сообщение или шаг (см. `.usage` в CSS): в спокойном чтении цифры не нужны.
  */
 function UsageBar({ u }: { u: Usage }) {
   const hit = u.in_tok > 0 ? Math.round((u.cached_tok / u.in_tok) * 100) : 0;
   const miss = u.in_tok - u.cached_tok;
   const cost = u.cost_micro / 1_000_000;
   return (
-    <span className="usage" title={`вход ${u.in_tok} · кеш ${u.cached_tok} · выход ${u.out_tok}`}>
-      <span className="usage__hit">{hit}%</span>
+    <span
+      className="usage"
+      title={[
+        `вход ${u.in_tok.toLocaleString("ru-RU")}`,
+        `кеш ${u.cached_tok.toLocaleString("ru-RU")}`,
+        `кеш-мисс ${miss.toLocaleString("ru-RU")}`,
+        `выход ${u.out_tok.toLocaleString("ru-RU")}`,
+        u.reason_tok > 0 ? `reasoning ${u.reason_tok.toLocaleString("ru-RU")}` : "",
+      ]
+        .filter(Boolean)
+        .join(" · ")}
+    >
+      <span className="usage__hit">
+        <svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true" className="usage__db">
+          <ellipse cx="12" cy="6" rx="8" ry="3" />
+          <path d="M4 6v12c0 1.66 3.58 3 8 3s8-1.34 8-3V6" />
+          <path d="M4 12c0 1.66 3.58 3 8 3s8-1.34 8-3" />
+        </svg>
+        {hit}%
+      </span>
       <span className="usage__dim">
         {miss}/{u.out_tok}
       </span>
       {u.reason_tok > 0 && <span className="usage__dim">r{u.reason_tok}</span>}
-      <span className="usage__cost">${cost < 0.01 ? cost.toFixed(4) : cost.toFixed(2)}</span>
+      <span className="usage__cost">${cost < 0.01 ? cost.toFixed(4) : cost.toFixed(3)}</span>
     </span>
   );
 }
@@ -364,8 +383,9 @@ function Step({
         {m.usage && <UsageBar u={m.usage} />}
         <time>{time(m.ts)}</time>
       </header>
-      {m.content && <Markdown text={m.content} />}
+      {/* Хронология хода: сначала модель думает, потом пишет. */}
       {m.reasoning && <Reasoning text={m.reasoning} />}
+      {m.content && <Markdown text={m.content} />}
       {tools.map((t) => (
         <ToolBlock key={t.callId} t={t} session={session} />
       ))}
@@ -408,8 +428,8 @@ function Live({
         <span>стрим</span>
       </header>
       <div className="msg__main">
-        {content && <Markdown text={content} />}
         {reasoning && <Reasoning text={reasoning} />}
+        {content && <Markdown text={content} />}
         {tools.map((t) => (
           <ToolBlock key={t.callId} t={t} session={session} defaultOpen={false} />
         ))}
@@ -567,9 +587,9 @@ function Dock({
 
 /**
  * Окно контекста: расклад считает ядро (`GET /v1/sessions/{id}/context`) по той
- * же проекции промпта, что уедет провайдеру. Клиент ничего не досчитывает:
- * сегменты — префикс (системный промпт), история диалога, результаты тулов
- * вместе со схемами инструментов, картинки.
+ * же проекции промпта, что уедет провайдеру, и приводит к цифрам провайдера
+ * калибровкой по прошлым ходам. Статьи — как в /context у Claude Code:
+ * системный промпт, сообщения, вызовы тулов, их результаты, картинки.
  */
 function ContextWindow({
   breakdown,
@@ -590,21 +610,21 @@ function ContextWindow({
   }
   const b = breakdown;
   const pct = limit > 0 ? Math.min(100, (b.total / limit) * 100) : 0;
-  const segs: Array<[string, number, string]> = [
-    ["prefix", b.prefix, "префикс"],
-    ["history", b.history, "история"],
-    ["tools", b.tools, "тулы"],
+  const fmt = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k` : String(n));
+  const all: Array<[string, number, string]> = [
+    ["system", b.system, "системный промпт"],
+    ["messages", b.messages, "сообщения"],
+    ["toolCalls", b.tool_calls, "вызовы тулов"],
+    ["toolResults", b.tool_results, "результаты тулов"],
     ["images", b.images, "картинки"],
   ];
-  const fmt = (n: number) =>
-    n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k` : String(n);
+  const segs = all.filter(([, n]) => n > 0);
   return (
     <div className="context">
       <div className="context__head">
-        <b>окно</b>
-        <span>
+        <b>
           {fmt(b.total)} / {fmt(limit)}
-        </span>
+        </b>
         <span>{pct.toFixed(0)}%</span>
       </div>
       <div
@@ -623,7 +643,7 @@ function ContextWindow({
       </div>
       <div className="context__legend">
         {segs.map(([kind, n, title]) => (
-          <span key={kind} title={`${Math.round(n)} токенов`}>
+          <span key={kind} title={`${Math.round(n).toLocaleString("ru-RU")} токенов`}>
             <i data-kind={kind} />
             {title} {fmt(n)}
           </span>
@@ -632,9 +652,9 @@ function ContextWindow({
           <i data-kind="free" />
           свободно {fmt(Math.max(0, limit - b.total))}
         </span>
-        <span>
-          {b.messages} сообщ. · {b.tool_calls} вызовов
-        </span>
+      </div>
+      <div className="context__foot">
+        {b.messages_count} сообщ. · {b.tool_calls_count} вызовов
       </div>
     </div>
   );
@@ -976,6 +996,9 @@ export default function App() {
 
   /** Тулы из журнала: вызов + его результат сводятся в один ToolRun. */
   const tools = useMemo<ToolRun[]>(() => {
+    // Без выбранной сессии тулов нет: иначе при «новой сессии» док показывал бы
+    // вызовы предыдущей, пока её история ещё лежит в состоянии.
+    if (!active) return [];
     const out: ToolRun[] = [];
     const byId = new Map<string, ToolRun>();
     let lastAssistant: ToolRun[] = [];
@@ -1029,7 +1052,7 @@ export default function App() {
       else out.push(t);
     }
     return out;
-  }, [msgs, liveTools]);
+  }, [active, msgs, liveTools]);
 
   /** Раскладка ленты: сообщения человека отдельно, промежуточные шаги — пачкой. */
   const blocks = useMemo(() => {
@@ -1065,8 +1088,9 @@ export default function App() {
       const answer = answerIdx >= 0 ? run[answerIdx] : undefined;
       const steps = answerIdx >= 0 ? run.slice(0, answerIdx) : run;
       // Рассуждение финального шага хронологически идёт ДО его текста, поэтому
-      // оно уезжает в группу промежуточных шагов, а не висит под ответом. Если
-      // группы нет (ход из одного сообщения) — reasoning остаётся при ответе.
+      // оно уезжает в группу промежуточных шагов (в её конец), а не висит под
+      // ответом. Если группы нет (ход из одного сообщения) — reasoning остаётся
+      // при ответе, но всё равно выводится перед текстом.
       const answerReasoning =
         answer && steps.length > 0 && answer.reasoning
           ? [{ ...answer, content: null } as TranscriptMessage]
@@ -1409,8 +1433,8 @@ export default function App() {
                     <time>{time(b.m.ts)}</time>
                   </header>
                   <div className="msg__main">
-                    <Markdown text={b.m.content ?? ""} />
                     {b.m.reasoning && <Reasoning text={b.m.reasoning} />}
+                    <Markdown text={b.m.content ?? ""} />
                     {b.tools.map((t) => (
                       <ToolBlock key={t.callId} t={t} session={active} />
                     ))}

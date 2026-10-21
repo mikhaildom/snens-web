@@ -71,12 +71,17 @@ export interface TranscriptMessage {
 /** Расклад рабочего окна сессии — считает ядро по проекции промпта. */
 export interface WindowBreakdown {
   total: number;
-  prefix: number;
-  history: number;
-  tools: number;
-  images: number;
+  /** Системный промпт и рамки. */
+  system: number;
+  /** Реплики человека и ответы модели. */
   messages: number;
+  /** Вызовы инструментов: имена, аргументы, описания. */
   tool_calls: number;
+  /** Результаты вызовов. */
+  tool_results: number;
+  images: number;
+  messages_count: number;
+  tool_calls_count: number;
 }
 
 export interface SearchHit {

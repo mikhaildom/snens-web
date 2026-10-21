@@ -22,7 +22,7 @@ export function ToolRow({ t, session }: { t: ToolRun; session: string }) {
       </button>
       {open && (
         <div className="win__body">
-          <ToolOutput t={t} quiet={quiet} paths={paths} raw />
+          <ToolOutput t={t} quiet={quiet} paths={paths} />
           <Attachments session={session} parts={t.parts} />
         </div>
       )}

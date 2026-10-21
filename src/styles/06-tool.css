@@ -94,3 +94,32 @@
 .tool__out {
   color: var(--ink-2);
 }
+
+/* аргументы вызова: пары «поле → значение», а не сырой JSON */
+.tool__args {
+  margin: 0;
+  display: grid;
+  gap: 1px;
+  font-size: var(--fs-xs);
+  line-height: 1.45;
+}
+
+.tool__args > div {
+  display: flex;
+  gap: var(--step);
+  align-items: baseline;
+}
+
+.tool__args dt {
+  flex: 0 0 auto;
+  min-width: 72px;
+  color: var(--ink-2);
+  text-transform: lowercase;
+}
+
+.tool__args dd {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}

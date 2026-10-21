@@ -51,6 +51,7 @@ export function useTranscript({ active, showRecall, onError }: Options) {
         setApr({ sid, value: null });
         // ?nostream=1 — статичный снимок истории без SSE (скриншоты, отладка)
         if (new URLSearchParams(location.search).has("nostream")) return;
+
         stop = subscribe(sid, h.cursor, (e: SurfaceEvent) => {
           switch (e.type) {
             case "run.started":

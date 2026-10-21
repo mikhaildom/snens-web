@@ -41,8 +41,11 @@ export default function App() {
   const [removing, setRemoving] = useState<string | null>(null);
   const [query, setQuery] = useState("");
 
-  const { active, select } = useActiveSession();
+  const { active, select, push, back } = useActiveSession();
   const { sessions, setSessions, reload } = useSessions(onError);
+  // Все сессии стримятся одинаково: подагент шлёт свои сигналы в эту же шину
+  // (`POST /v1/sessions/{id}/ingest`), клиент не знает, где шёл процесс.
+  const childSession = Boolean(sessions.find((s) => s.id === active)?.parent);
   const { msgs, setMsgs, live, running, runId, steps, approval, decide } = useTranscript({
     active,
     showRecall,
@@ -62,6 +65,7 @@ export default function App() {
 
   const turns = msgs.filter((m) => m.role !== "tool").length;
   const current = sessions.find((s) => s.id === active);
+  const parent = current?.parent ? sessions.find((s) => s.id === current.parent) : undefined;
   const roots = sessions.filter((s) => !s.parent).length;
 
   useEffect(() => {
@@ -93,9 +97,20 @@ export default function App() {
     document.title = current?.title ? `${current.title} — snens` : "snens";
   }, [current?.title]);
 
-  /** Выбор сессии в рельсе: закрыть шторку, снять поиск. */
+  /** Выбор сессии в рельсе: закрыть шторку, снять поиск. Историю не растим. */
   function pick(id: string | null) {
     select(id);
+    setRailOpen(false);
+    setQuery("");
+    ctx.reset();
+  }
+
+  /**
+   * Открыть сессию подагента: пишем в историю браузера, чтобы «назад» (или
+   * стрелка в топбаре) вернула к родителю, а не в начало приложения.
+   */
+  function openChild(id: string) {
+    push(id);
     setRailOpen(false);
     setQuery("");
     ctx.reset();
@@ -184,11 +199,13 @@ export default function App() {
       <main className="main">
         <Topbar
           current={current}
-          running={running}
+          parentTitle={parent?.title}
+          running={running || (childSession && current?.state === "running")}
           canStop={Boolean(active && runId)}
           onStop={() => active && runId && api.stop(active, runId).catch((e) => onError(String(e)))}
           onBurger={() => setRailOpen(true)}
           onDock={() => setDockOpen(true)}
+          onBack={back}
         />
 
         <div className="feed" ref={feedRef}>
@@ -246,7 +263,7 @@ export default function App() {
       <aside className="dock" aria-label="dock">
         {active && <ContextWindow breakdown={ctx.breakdown} limit={ctx.limit} />}
         <Dock tab={dockTab} setTab={setDockTab} tools={tools} session={active ?? ""}>
-          <Agents sessions={sessions} active={active} onPick={pick} />
+          <Agents sessions={sessions} active={active} onPick={openChild} />
         </Dock>
       </aside>
 
@@ -261,7 +278,7 @@ export default function App() {
               session={active ?? ""}
               onClose={() => setDockOpen(false)}
             >
-              <Agents sessions={sessions} active={active} onPick={pick} />
+              <Agents sessions={sessions} active={active} onPick={openChild} />
             </Dock>
           </>
         )}

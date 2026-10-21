@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { ToolRun } from "../lenta";
-import { argLabel, hasMedia, MARK, MEDIA_TOOLS, mediaPaths } from "../lib/tool";
+import { argLabel, hasMedia, MARK, MEDIA_TOOLS, mediaPaths, prettyArgs } from "../lib/tool";
 import { dur, time } from "../lib/time";
 import { Attachments } from "./Attachments";
 
@@ -47,18 +47,34 @@ export function ToolBlock({
   );
 }
 
-/** Тело вызова: у медиа-тулов — пути, у остальных — argv и вывод. */
+/**
+ * Аргументы вызова списком «поле → значение». JSON не показываем: кавычки,
+ * скобки и экранирование — это транспорт, а не то, что человек вызвал.
+ */
+export function ArgsList({ raw }: { raw: string }) {
+  const rows = prettyArgs(raw);
+  if (rows.length === 0) return null;
+  return (
+    <dl className="tool__args">
+      {rows.map(([k, v]) => (
+        <div key={k}>
+          {k && <dt>{k}</dt>}
+          <dd>{v}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+/** Тело вызова: у медиа-тулов — пути, у остальных — аргументы и вывод. */
 export function ToolOutput({
   t,
   quiet,
   paths,
-  raw,
 }: {
   t: ToolRun;
   quiet: boolean;
   paths: string[];
-  /** Док рисует argv/вывод голыми `<pre>` — без класса `.code`. */
-  raw?: boolean;
 }) {
   if (quiet) {
     if (paths.length === 0) return null;
@@ -74,8 +90,8 @@ export function ToolOutput({
   }
   return (
     <>
-      {t.args && <pre className={raw ? undefined : "code"}>{t.args}</pre>}
-      {t.preview && <pre className={raw ? undefined : "code tool__out"}>{t.preview}</pre>}
+      <ArgsList raw={t.args} />
+      {t.preview && <pre className="code tool__out">{t.preview}</pre>}
     </>
   );
 }

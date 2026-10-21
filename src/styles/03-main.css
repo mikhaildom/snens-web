@@ -59,3 +59,19 @@
   font-size: var(--fs-lg);
   line-height: 1;
 }
+
+/* шапка подагента: стрелка назад и бейдж — сразу видно, что это не корень */
+.topbar__back {
+  margin-right: calc(var(--step) * 0.5);
+  font-size: var(--fs-xs);
+}
+
+.topbar__badge {
+  margin-right: var(--step);
+  padding: 0 4px;
+  border: 1px solid var(--hair);
+  color: var(--ink-2);
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}

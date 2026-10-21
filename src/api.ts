@@ -17,6 +17,10 @@ export interface SessionInfo {
   title?: string;
   /** Время последней активности (unix, сек) — mtime лога сессии. */
   updated_at?: number;
+  /** Сколько ходов модели прошло: у подагентов это главная цифра прогресса. */
+  turns?: number;
+  /** Последняя запись `Done` в журнале: `ok`, `max_turns`, пусто — не закрывалась. */
+  done?: string;
 }
 
 export interface Part {

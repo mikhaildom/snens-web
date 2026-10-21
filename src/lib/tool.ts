@@ -52,3 +52,34 @@ export function argLabel(t: ToolRun): string {
   const paths = mediaPaths(t);
   return paths.length > 0 ? paths.map((p) => p.split("/").pop()).join(", ") : shortArgs(t.args);
 }
+
+/**
+ * Аргументы вызова для тела блока: не сырой JSON, а пары «поле → значение».
+ *
+ * Сырой `{"command":"cd … && shot …","timeout":30}` человек читает как шум, а
+ * в доке он занимал пол-панели. Одна строка на аргумент: видно, что вызвали и с
+ * какими значениями, без кавычек и скобок.
+ */
+export function prettyArgs(raw: string): Array<[string, string]> {
+  if (!raw.trim()) return [];
+  let v: unknown;
+  try {
+    v = JSON.parse(raw);
+  } catch {
+    return raw
+      .split("\n")
+      .map((l) => l.trim())
+      .filter(Boolean)
+      .map((l, i) => [String(i + 1), l] as [string, string]);
+  }
+  if (v === null || typeof v !== "object") return [["", String(v)]];
+  if (Array.isArray(v)) return [["args", v.map((x) => String(x)).join(" ")]];
+  return Object.entries(v as Record<string, unknown>).map(([k, val]) => {
+    const text = Array.isArray(val)
+      ? val.map((x) => (typeof x === "object" ? JSON.stringify(x) : String(x))).join(" ")
+      : typeof val === "object" && val !== null
+        ? JSON.stringify(val)
+        : String(val);
+    return [k, text] as [string, string];
+  });
+}

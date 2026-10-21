@@ -9,6 +9,10 @@ export interface SessionInfo {
   surface: string;
   state: string;
   run_id: string | null;
+  /** Сессия-родитель, если это подагент. */
+  parent?: string;
+  /** Модель, которой реально шёл ход (у старых логов нет). */
+  model?: string;
   /** Заголовок: сгенерированный ядром или первые слова первого сообщения. */
   title?: string;
   /** Время последней активности (unix, сек) — mtime лога сессии. */
@@ -30,6 +34,15 @@ export interface ToolCall {
   function: { name: string; arguments: string };
 }
 
+/** Расход одного хода: цена и попадание в кеш. */
+export interface Usage {
+  in_tok: number;
+  cached_tok: number;
+  out_tok: number;
+  reason_tok: number;
+  cost_micro: number;
+}
+
 export interface TranscriptMessage {
   seq: number;
   ts: number;
@@ -47,6 +60,20 @@ export interface TranscriptMessage {
   argv?: string[];
   /** Вложения инструмента: картинки, которые он положил в канал. */
   parts?: Part[];
+  /** `steer` | `ask` | `report` — вставка в ход (человек, подагент). */
+  via?: string;
+  /** Автор вставки. */
+  from?: string;
+  /** Расход хода (только у assistant). */
+  usage?: Usage;
+}
+
+export interface SearchHit {
+  id: string;
+  title?: string;
+  surface: string;
+  updated_at?: number;
+  matches: Array<{ seq: number; role: string; ts: number; snippet: string }>;
 }
 
 export interface SurfaceEvent {
@@ -109,10 +136,10 @@ export const api = {
 
   history: (id: string) => j<History>(`/v1/sessions/${id}/history`),
 
-  send: (id: string, text: string) =>
+  send: (id: string, text: string, attachmentIds: string[] = []) =>
     j<unknown>(`/v1/sessions/${id}/messages`, {
       method: "POST",
-      body: JSON.stringify({ command_id: uuid(), text }),
+      body: JSON.stringify({ command_id: uuid(), text, attachment_ids: attachmentIds }),
     }),
 
   stop: (id: string, runId: string) =>
@@ -122,6 +149,39 @@ export const api = {
     }),
 
   model: () => j<{ model: string }>("/v1/model"),
+
+  search: (q: string, limit = 30) =>
+    j<{ hits: SearchHit[] }>(`/v1/search?q=${encodeURIComponent(q)}&limit=${limit}`),
+
+  remove: (id: string) => j<unknown>(`/v1/sessions/${id}`, { method: "DELETE" }),
+
+  /** Загрузка вложения: raw bytes, имя и command_id в query. */
+  upload: async (id: string, file: File): Promise<Part & { attachment_id: string; name: string }> => {
+    const q = `filename=${encodeURIComponent(file.name)}&command_id=${uuid()}`;
+    const r = await fetch(`/api/v1/sessions/${id}/attachments?${q}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/octet-stream" },
+      body: file,
+    });
+    if (!r.ok) {
+      let detail = `${r.status} ${r.statusText}`;
+      try {
+        const b = await r.json();
+        if (b?.error?.message) detail = `${b.error.code}: ${b.error.message}`;
+      } catch {
+        /* тело не JSON — оставляем статус */
+      }
+      throw new Error(detail);
+    }
+    const a = (await r.json()) as {
+      attachment_id: string;
+      name: string;
+      path: string;
+      mime: string;
+      bytes: number;
+    };
+    return { ...a, kind: a.mime.split("/")[0] };
+  },
 
   approve: (id: string, aid: string, allow: boolean) =>
     j<unknown>(`/v1/sessions/${id}/approvals/${aid}`, {

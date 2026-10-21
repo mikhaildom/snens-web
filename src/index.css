@@ -1302,3 +1302,454 @@ pre.code .dim {
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
+
+/* ── rail: поиск, удаление, новые строки ───────────────── */
+
+.rail__search {
+  position: relative;
+  padding: 0 var(--step);
+}
+
+.rail__search input {
+  width: 100%;
+  border: var(--bar) solid var(--line);
+  background: var(--paper);
+  padding: 2px calc(var(--step) * 0.5);
+  font-size: var(--fs-sm);
+}
+
+.rail__search input::placeholder {
+  color: var(--ink-2);
+}
+
+.rail__searching {
+  position: absolute;
+  right: calc(var(--step) + 4px);
+  top: 3px;
+  color: var(--accent);
+  font-size: var(--fs-xs);
+}
+
+.rail__row {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+}
+
+.rail__row .rail__item {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Ведро появляется на ховере; место под него зарезервировано, чтобы текст
+   не прыгал. */
+.rail__trash,
+.rail__confirm {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+}
+
+.rail__trash {
+  border: 0;
+  border-left: 1px solid transparent;
+  background: transparent;
+  color: var(--ink-2);
+  padding: 0 6px;
+  opacity: 0;
+  visibility: hidden;
+}
+
+.rail__row:hover .rail__trash,
+.rail__trash:focus-visible {
+  opacity: 1;
+  visibility: visible;
+}
+
+.rail__trash:hover {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.rail__confirm button {
+  border: 0;
+  background: transparent;
+  padding: 0 4px;
+  font-size: var(--fs-sm);
+  line-height: 1;
+}
+
+.rail__yes {
+  color: var(--ok);
+  font-weight: 700;
+}
+
+.rail__yes:hover {
+  background: var(--ok);
+  color: var(--paper);
+}
+
+.rail__no {
+  color: var(--ink-2);
+}
+
+.rail__no:hover {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.rail__row[data-removing="true"] {
+  background: var(--paper-3);
+}
+
+.rail__hit {
+  display: block;
+  font-size: var(--fs-xs);
+  color: var(--ink-2);
+  border-top: 1px dotted var(--hair);
+  margin-top: 2px;
+  padding-top: 2px;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.rail__empty {
+  padding: var(--step);
+  font-size: var(--fs-sm);
+  color: var(--ink-2);
+}
+
+.rail__new {
+  margin: 0 var(--step) var(--step);
+  border: var(--bar) dashed var(--hair);
+  background: transparent;
+  color: var(--ink-2);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.rail__new:hover {
+  border-style: solid;
+  background: var(--ink);
+  color: var(--paper);
+}
+
+/* ── подагенты в доке ──────────────────────────────────── */
+
+.agents {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.agents__filter {
+  display: flex;
+  align-items: center;
+  gap: var(--step);
+  padding: 2px var(--step);
+  border-bottom: 1px solid var(--hair);
+  font-size: var(--fs-xs);
+  color: var(--ink-2);
+}
+
+.agents__filter button {
+  color: var(--ink-2);
+  font-size: var(--fs-xs);
+}
+
+.agents__filter button[aria-pressed="true"] {
+  color: var(--accent);
+}
+
+.agents__count {
+  margin-left: auto;
+}
+
+.agents__row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid var(--hair);
+  background: transparent;
+  padding: 3px var(--step);
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: var(--fs-sm);
+  text-align: left;
+}
+
+.agents__row:hover {
+  background: var(--paper-3);
+  color: var(--ink);
+}
+
+.agents__row[aria-current="true"] {
+  box-shadow: inset 3px 0 0 var(--accent);
+  background: var(--paper-3);
+}
+
+.agents__state {
+  width: 6px;
+  height: 6px;
+  background: var(--hair);
+  flex: 0 0 auto;
+}
+
+.agents__state[data-state="running"],
+.agents__state[data-state="stopping"] {
+  background: var(--accent);
+}
+
+.agents__title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agents__meta {
+  color: var(--ink-2);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}
+
+/* ── приветствие ───────────────────────────────────────── */
+
+/* Без сессии верхняя строка пустая: заголовка нет, и «новая сессия» в ней
+   дублировала бы приветствие. */
+.topbar[data-idle="true"] .topbar__title {
+  visibility: hidden;
+}
+
+.hello {
+  margin: auto;
+  max-width: 62ch;
+  padding: calc(var(--step) * 2) 0;
+}
+
+.hello__mark {
+  font-size: 40px;
+  line-height: 1;
+  letter-spacing: 0.18em;
+  margin: 0 0 calc(var(--step) * 1.5);
+  font-weight: 700;
+  background: var(--ink);
+  color: var(--paper);
+  padding: 6px 10px;
+  display: inline-block;
+}
+
+.hello__lead {
+  margin: 0 0 calc(var(--step) * 2);
+  color: var(--ink-2);
+  line-height: 1.6;
+}
+
+.hello__facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0;
+  border: var(--bar) solid var(--line);
+  margin: 0 0 calc(var(--step) * 2);
+}
+
+.hello__facts > div {
+  padding: calc(var(--step) * 0.5) var(--step);
+  border-right: 1px solid var(--hair);
+}
+
+.hello__facts > div:last-child {
+  border-right: 0;
+}
+
+.hello__facts dt {
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ink-2);
+}
+
+.hello__facts dd {
+  margin: 2px 0 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hello__hint {
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--ink-2);
+}
+
+/* ── composer: вложения ────────────────────────────────── */
+
+.composer[data-drag="true"] {
+  outline: var(--bar) dashed var(--accent);
+  outline-offset: -4px;
+}
+
+.composer__attach {
+  align-self: stretch;
+  border: var(--bar) solid var(--line);
+  background: var(--paper);
+  font-size: var(--fs-md);
+  line-height: 1;
+  padding: 0 calc(var(--step) * 0.75);
+}
+
+.composer__attach:hover {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.composer__files {
+  list-style: none;
+  margin: 0 0 calc(var(--step) * 0.5);
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(var(--step) * 0.5);
+  font-size: var(--fs-xs);
+}
+
+.composer__files li {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--hair);
+  background: var(--paper);
+  padding: 0 2px 0 4px;
+}
+
+.composer__size {
+  color: var(--ink-2);
+}
+
+/* ── расход хода ───────────────────────────────────────── */
+
+.usage {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+}
+
+.usage__hit {
+  color: var(--ink);
+}
+
+.usage__cost {
+  color: var(--accent);
+}
+
+.step--via {
+  border-left-color: var(--hair);
+}
+
+.via__body {
+  max-width: 92ch;
+  color: var(--ink-2);
+  font-size: var(--fs-sm);
+}
+
+/* ── окно контекста: большая шкала с сегментами ────────── */
+
+.context {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--step) * 0.5);
+  padding: var(--step);
+  border-bottom: var(--bar) solid var(--line);
+}
+
+.context__head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--step);
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ink-2);
+}
+
+.context__head b {
+  color: var(--ink);
+  font-size: var(--fs-sm);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.context__head span:last-child {
+  margin-left: auto;
+}
+
+.context__bar {
+  display: flex;
+  height: 22px;
+  border: var(--bar) solid var(--line);
+  background: var(--paper);
+  overflow: hidden;
+}
+
+.context__seg {
+  height: 100%;
+  min-width: 1px;
+}
+
+.context__seg[data-kind="in"] {
+  background: var(--hair);
+}
+
+.context__seg[data-kind="cached"] {
+  background: var(--ink);
+}
+
+.context__seg[data-kind="out"] {
+  background: var(--accent);
+}
+
+.context__seg[data-kind="free"] {
+  background: var(--paper-3);
+  flex: 1;
+}
+
+.context__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--step);
+  font-size: var(--fs-xs);
+  color: var(--ink-2);
+}
+
+.context__legend i {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 4px;
+  vertical-align: baseline;
+}
+
+.context__legend i[data-kind="in"] {
+  background: var(--hair);
+}
+
+.context__legend i[data-kind="cached"] {
+  background: var(--ink);
+}
+
+.context__legend i[data-kind="out"] {
+  background: var(--accent);
+}
+
+.context__legend i[data-kind="free"] {
+  background: var(--paper-3);
+  border: 1px solid var(--hair);
+}

@@ -2,11 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   api,
   subscribe,
+  uuid,
   type Part,
   type SessionInfo,
   type SurfaceEvent,
+  type SearchHit,
   type ToolCall,
   type TranscriptMessage,
+  type Usage,
 } from "./api";
 import { Markdown } from "./markdown";
 import { applyTheme, initialTheme, type Theme } from "./theme";
@@ -98,6 +101,9 @@ function viewedPaths(t: ToolRun): string[] {
 }
 
 const MEDIA_TOOLS = new Set(["view"]);
+
+/** Лимит окна для шкалы контекста: у сессии он свой, у поверхности — дефолт. */
+const CTX_LIMIT = 1_000_000;
 
 const fileUrl = (session: string, path: string) =>
   `/api/v1/sessions/${session}/file?path=${encodeURIComponent(path)}`;
@@ -303,6 +309,26 @@ function Reasoning({ text }: { text: string }) {
   );
 }
 
+/**
+ * Расход хода: вход/кеш/выход и цена. Кеш-хит — доля входа, пришедшая из кеша:
+ * именно она отличает «дорогой» ход от «дешёвого» при том же объёме.
+ */
+function UsageBar({ u }: { u: Usage }) {
+  const hit = u.in_tok > 0 ? Math.round((u.cached_tok / u.in_tok) * 100) : 0;
+  const miss = u.in_tok - u.cached_tok;
+  const cost = u.cost_micro / 1_000_000;
+  return (
+    <span className="usage" title={`вход ${u.in_tok} · кеш ${u.cached_tok} · выход ${u.out_tok}`}>
+      <span className="usage__hit">{hit}%</span>
+      <span className="usage__dim">
+        {miss}/{u.out_tok}
+      </span>
+      {u.reason_tok > 0 && <span className="usage__dim">r{u.reason_tok}</span>}
+      <span className="usage__cost">${cost < 0.01 ? cost.toFixed(4) : cost.toFixed(2)}</span>
+    </span>
+  );
+}
+
 /** Один шаг модели: текст ответа, reasoning (свёрнут) и его вызовы тулов. */
 function Step({
   m,
@@ -315,11 +341,26 @@ function Step({
 }) {
   const hasBody = Boolean(m.content) || tools.length > 0 || Boolean(m.reasoning);
   if (!hasBody) return null;
+  // Вставка в ход: вопрос или отчёт подагента. Автор — по имени сессии, без
+  // служебных префиксов в тексте.
+  if (m.via === "report" || m.via === "ask") {
+    return (
+      <div className="step step--via">
+        <header className="msg__head">
+          <span className="who">{m.via === "ask" ? "вопрос" : "отчёт"}</span>
+          <span>{m.from ? m.from.slice(0, 8) : "подагент"}</span>
+          <time>{time(m.ts)}</time>
+        </header>
+        <div className="via__body">{m.content && <Markdown text={m.content} images={false} />}</div>
+      </div>
+    );
+  }
   return (
     <div className="step">
       <header className="msg__head">
         <span className="who">snens</span>
         {tools.length > 0 && <span>{tools.length} тул.</span>}
+        {m.usage && <UsageBar u={m.usage} />}
         <time>{time(m.ts)}</time>
       </header>
       {m.content && <Markdown text={m.content} />}
@@ -396,6 +437,20 @@ function Steps({
     (n, m) => n + (toolsByStep.get(m.seq) ?? []).reduce((k, t) => k + (t.ms ?? 0), 0),
     0,
   );
+  // Расход всей пачки: по нему видно, сколько стоил путь до ответа.
+  const usage = steps.reduce<Usage | undefined>((acc, m) => {
+    if (!m.usage) return acc;
+    return {
+      in_tok: (acc?.in_tok ?? 0) + m.usage.in_tok,
+      cached_tok: (acc?.cached_tok ?? 0) + m.usage.cached_tok,
+      out_tok: (acc?.out_tok ?? 0) + m.usage.out_tok,
+      reason_tok: (acc?.reason_tok ?? 0) + m.usage.reason_tok,
+      cost_micro: (acc?.cost_micro ?? 0) + m.usage.cost_micro,
+    };
+  }, undefined);
+  // Отчёты подагентов (`via: "report"`) — не реплики модели: их место в
+  // промежуточных шагах, а не на виду у человека.
+  const reports = steps.filter((m) => m.via === "report").length;
   return (
     <section className="steps" data-open={open}>
       <button className="steps__head" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
@@ -404,7 +459,9 @@ function Steps({
           {steps.length} {stepsWord(steps.length)}
         </span>
         {toolCount > 0 && <span className="steps__dim">{toolCount} тул.</span>}
+        {reports > 0 && <span className="steps__dim">{reports} отчёт</span>}
         {ms > 0 && <span className="steps__dim">{dur(ms)}</span>}
+        {usage && <UsageBar u={usage} />}
         <time>{time(steps[steps.length - 1].ts)}</time>
       </button>
       {open && (
@@ -467,12 +524,14 @@ function Dock({
   setTab,
   tools,
   session,
+  children,
   onClose,
 }: {
   tab: DockTab;
   setTab: (t: DockTab) => void;
   tools: ToolRun[];
   session: string;
+  children?: React.ReactNode;
   onClose?: () => void;
 }) {
   const running = tools.filter((t) => t.state === "running").length;
@@ -494,11 +553,7 @@ function Dock({
       </div>
       <div className="dock__body" role="tabpanel">
         {tab === "windows" ? (
-          <div className="dock__empty">
-            окон пока нет.
-            <br />
-            здесь будут подагенты и их рабочие поверхности — ядро пока не отдаёт их по API.
-          </div>
+          children
         ) : tools.length === 0 ? (
           <div className="dock__empty">в этой сессии тулы ещё не звались.</div>
         ) : (
@@ -506,6 +561,139 @@ function Dock({
         )}
       </div>
     </>
+  );
+}
+
+/**
+ * Окно контекста: сколько сессия уже съела и из чего это состоит.
+ *
+ * Сегменты (как на референсе): cached — вход из кеша (дёшево), in — свежий
+ * вход (кеш-мисс), out — выход модели, free — остаток окна. Считаем по записям
+ * `usage`: у каждого хода вход — это и есть занятое окно на момент хода, поэтому
+ * берём МАКСИМУМ входа, а не сумму (сумма дала бы кратную переоценку).
+ */
+function ContextWindow({ msgs, limit }: { msgs: TranscriptMessage[]; limit: number }) {
+  let inTok = 0;
+  let cached = 0;
+  let outTok = 0;
+  let costMicro = 0;
+  let turns = 0;
+  for (const m of msgs) {
+    if (!m.usage) continue;
+    turns += 1;
+    inTok = Math.max(inTok, m.usage.in_tok);
+    cached = Math.max(cached, m.usage.cached_tok);
+    outTok += m.usage.out_tok;
+    costMicro += m.usage.cost_micro;
+  }
+  // Выход всех ходов суммируется, но окно он не занимает — в следующем ходе
+  // он уже часть входа. Показываем занятое окно отдельно от накопленного выхода.
+  const used = Math.min(limit, Math.max(inTok, cached));
+  const fresh = Math.max(0, inTok - cached);
+  const pct = limit > 0 ? Math.min(100, (used / limit) * 100) : 0;
+  const cost = costMicro / 1_000_000;
+  return (
+    <div className="context">
+      <div className="context__head">
+        <b>окно</b>
+        <span>
+          {used.toLocaleString("ru-RU")} / {(limit / 1000).toFixed(0)}k
+        </span>
+        <span>{pct.toFixed(1)}%</span>
+      </div>
+      <div className="context__bar" title={`вход ${inTok} · кеш ${cached} · выход ${outTok}`}>
+        <span
+          className="context__seg"
+          data-kind="cached"
+          style={{ width: `${(cached / limit) * 100}%` }}
+        />
+        <span
+          className="context__seg"
+          data-kind="in"
+          style={{ width: `${(fresh / limit) * 100}%` }}
+        />
+        <span
+          className="context__seg"
+          data-kind="out"
+          style={{ width: `${Math.min(20, (outTok / limit) * 100)}%` }}
+        />
+        <span className="context__seg" data-kind="free" />
+      </div>
+      <div className="context__legend">
+        <span>
+          <i data-kind="cached" />
+          кеш {cached.toLocaleString("ru-RU")}
+        </span>
+        <span>
+          <i data-kind="in" />
+          свежий {fresh.toLocaleString("ru-RU")}
+        </span>
+        <span>
+          <i data-kind="out" />
+          выход {outTok.toLocaleString("ru-RU")}
+        </span>
+        <span>
+          <i data-kind="free" />
+          свободно
+        </span>
+        <span>
+          {turns} ход. · ${cost < 0.01 ? cost.toFixed(4) : cost.toFixed(3)}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Подагенты: сессии с `parent`. Ядро отдаёт их списком, отдельной ручки нет —
+ * фильтруем по полю. Клик открывает сессию подагента как обычную.
+ */
+function Agents({
+  sessions,
+  active,
+  onPick,
+}: {
+  sessions: SessionInfo[];
+  active: string | null;
+  onPick: (id: string) => void;
+}) {
+  const [onlyChildren, setOnlyChildren] = useState(false);
+  const children = sessions.filter((s) => s.parent);
+  const roots = children.filter((s) => !onlyChildren || !active || s.parent === active);
+  if (roots.length === 0) {
+    return (
+      <div className="dock__empty">
+        подагентов нет.
+        <br />
+        когда агент запустит дочернюю сессию, она появится здесь и её можно будет открыть.
+      </div>
+    );
+  }
+  return (
+    <div className="agents">
+      <div className="agents__filter">
+        <button
+          className="ghost"
+          onClick={() => setOnlyChildren((v) => !v)}
+          aria-pressed={onlyChildren}
+        >
+          {onlyChildren ? "только дети этой сессии" : "все подагенты"}
+        </button>
+        <span className="agents__count">{roots.length}</span>
+      </div>
+      {roots.map((s) => (
+        <button
+          key={s.id}
+          className="agents__row"
+          aria-current={active === s.id}
+          onClick={() => onPick(s.id)}
+        >
+          <span className="agents__state" data-state={s.state} />
+          <span className="agents__title">{s.title || s.id.slice(0, 8)}</span>
+          <span className="agents__meta">{relTime(s.updated_at)}</span>
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -556,6 +744,14 @@ export default function App() {
   const [railOpen, setRailOpen] = useState(false);
   const [dockOpen, setDockOpen] = useState(() => new URLSearchParams(location.search).has("dock"));
   const [dockTab, setDockTab] = useState<DockTab>("tools");
+  /** Файлы, приложенные к ещё не отправленному сообщению. */
+  const [pending, setPending] = useState<Array<{ file: File; id: string }>>([]);
+  /** Сессия, у которой открыто подтверждение удаления. */
+  const [removing, setRemoving] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [hits, setHits] = useState<SearchHit[]>([]);
+  const [searching, setSearching] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
   const feedRef = useRef<HTMLDivElement>(null);
 
   const rail = useResize("snens-rail-w", 248, 176, 420, 1);
@@ -611,10 +807,11 @@ export default function App() {
   useEffect(() => {
     let alive = true;
     (async () => {
-      const [list, m] = await Promise.all([loadSessions(), api.model().catch(() => null)]);
+      // Без `?session=` показываем приветствие, а не первую сессию: выбор
+      // сессии — явное действие человека (или ссылка), не догадка клиента.
+      const [, m] = await Promise.all([loadSessions(), api.model().catch(() => null)]);
       if (!alive) return;
       if (m) setModel(m.model);
-      setActive((prev) => prev ?? list[0]?.id ?? null);
       setLoading(false);
     })();
     return () => {
@@ -736,6 +933,25 @@ export default function App() {
     if (el) el.scrollTop = el.scrollHeight;
   }, [msgs, stream.content, stream.reasoning]);
 
+  // Поиск по журналам: дебаунс 300 мс, чтобы не дёргать ядро на каждую букву.
+  useEffect(() => {
+    const q = query.trim();
+    if (!q) {
+      setHits([]);
+      setSearching(false);
+      return;
+    }
+    setSearching(true);
+    const t = setTimeout(() => {
+      api
+        .search(q, 40)
+        .then((r) => setHits(r.hits))
+        .catch((e) => setError(String(e instanceof Error ? e.message : e)))
+        .finally(() => setSearching(false));
+    }, 300);
+    return () => clearTimeout(t);
+  }, [query]);
+
   /** Тулы из журнала: вызов + его результат сводятся в один ToolRun. */
   const tools = useMemo<ToolRun[]>(() => {
     const out: ToolRun[] = [];
@@ -852,6 +1068,14 @@ export default function App() {
     };
     for (const m of msgs) {
       if (m.role === "user") {
+        // Вставка в ход от подагента (`report`) — часть работы, а не реплика
+        // человека: уезжает в текущую пачку шагов. Сообщение самого человека и
+        // его же steer (`via: "steer"`) — остаются репликами.
+        const fromAgent = m.via === "report" || m.via === "ask";
+        if (fromAgent) {
+          run.push(m);
+          continue;
+        }
         flush();
         out.push({ kind: "user", m });
       } else if (m.role === "assistant") {
@@ -876,9 +1100,11 @@ export default function App() {
 
   async function send() {
     const text = draft.trim();
-    if (!text) return;
+    if (!text && pending.length === 0) return;
     setError(null);
     try {
+      // Сессия создаётся только когда есть что отправить: пустых сессий в
+      // списке быть не должно.
       let id = active;
       if (!id) {
         const created = await api.create("web");
@@ -886,8 +1112,14 @@ export default function App() {
         select(id);
         setSessions((prev) => [created, ...prev]);
       }
-      await api.send(id, text);
+      const ids: string[] = [];
+      for (const file of pending) {
+        const up = await api.upload(id, file.file);
+        ids.push(up.attachment_id);
+      }
+      await api.send(id, text, ids);
       setDraft("");
+      setPending([]);
       setRunning(true);
       const h = await api.history(id);
       setMsgs(h.messages);
@@ -897,14 +1129,31 @@ export default function App() {
     }
   }
 
-  async function newSession() {
+  /** Новая сессия: экран приветствия, а не пустая запись в журнале. */
+  function newSession() {
+    select(null);
+    setRailOpen(false);
+    setDraft("");
+    setPending([]);
+  }
+
+  async function removeSession(id: string) {
     try {
-      const created = await api.create("web");
-      setSessions((prev) => [created, ...prev]);
-      select(created.id);
+      await api.remove(id);
+      setSessions((prev) => prev.filter((s) => s.id !== id));
+      setRemoving(null);
+      if (active === id) select(null);
     } catch (e) {
       setError(String(e instanceof Error ? e.message : e));
     }
+  }
+
+  function attach(files: FileList | null) {
+    if (!files) return;
+    setPending((prev) => [
+      ...prev,
+      ...Array.from(files).map((file) => ({ file, id: uuid() })),
+    ]);
   }
 
   async function decide(allow: boolean) {
@@ -931,47 +1180,143 @@ export default function App() {
           </button>
         </div>
 
+        <div className="rail__search">
+          <input
+            value={query}
+            placeholder="поиск по сообщениям"
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") {
+                setQuery("");
+                setHits([]);
+              }
+            }}
+          />
+          {searching && <span className="rail__searching">…</span>}
+        </div>
+
         <div className="rail__section">
-          <span>sessions {sessions.length}</span>
+          <span>
+            {query.trim()
+              ? `найдено ${hits.length}`
+              : `sessions ${sessions.filter((s) => !s.parent).length}`}
+          </span>
           <button className="ghost" title="new session" onClick={newSession}>
             +
           </button>
         </div>
 
-        <ul className="rail__list">
-          {sessions.map((s) => (
-            <li key={s.id}>
-              <button
-                className="rail__item"
-                aria-current={active === s.id}
-                onClick={() => select(s.id)}
-              >
-                {s.title || "новая сессия"}
-                <small>
-                  {relTime(s.updated_at)} · {s.surface}
-                  {s.state !== "idle" ? ` · ${s.state}` : ""}
-                </small>
-              </button>
-            </li>
-          ))}
-        </ul>
+        {query.trim() ? (
+          <ul className="rail__list">
+            {hits.map((h) => (
+              <li key={h.id}>
+                <button
+                  className="rail__item"
+                  aria-current={active === h.id}
+                  onClick={() => {
+                    select(h.id);
+                    setHits([]);
+                    setQuery("");
+                  }}
+                >
+                  {h.title || h.matches[0]?.snippet || "—"}
+                  <small>
+                    {relTime(h.updated_at)} · {h.surface} · {h.matches.length} совпад.
+                  </small>
+                  {h.matches[0] && (
+                    <span className="rail__hit">{h.matches[0].snippet}</span>
+                  )}
+                </button>
+              </li>
+            ))}
+            {!searching && hits.length === 0 && (
+              <li className="rail__empty">ничего не найдено</li>
+            )}
+          </ul>
+        ) : (
+          <ul className="rail__list">
+            {sessions
+              .filter((s) => !s.parent)
+              .map((s) => (
+              <li key={s.id} className="rail__row" data-removing={removing === s.id}>
+                <button
+                  className="rail__item"
+                  aria-current={active === s.id}
+                  onClick={() => select(s.id)}
+                >
+                  {s.title || "новая сессия"}
+                  <small>
+                    {relTime(s.updated_at)} · {s.parent ? "подагент" : s.surface}
+                    {s.state !== "idle" ? ` · ${s.state}` : ""}
+                  </small>
+                </button>
+                {removing === s.id ? (
+                  <span className="rail__confirm">
+                    <button
+                      className="rail__yes"
+                      title="удалить"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeSession(s.id);
+                      }}
+                    >
+                      ✓
+                    </button>
+                    {/* Крестик стоит там, где было ведро: двойной клик по
+                        привычному месту отменяет, а не удаляет. */}
+                    <button
+                      className="rail__no"
+                      title="отмена"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setRemoving(null);
+                      }}
+                    >
+                      ×
+                    </button>
+                  </span>
+                ) : (
+                  <button
+                    className="rail__trash"
+                    title="удалить сессию"
+                    aria-label="удалить сессию"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setRemoving(s.id);
+                    }}
+                  >
+                    <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+                      <path
+                        d="M3 4h10M6 4V2.5h4V4M4.5 4l.6 9.5h5.8L11.5 4M6.8 6.5v5M9.2 6.5v5"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.6"
+                      />
+                    </svg>
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <button className="rail__new" onClick={newSession}>
+          + new session
+        </button>
 
         <div className="rail__foot">
           <ThemeBar theme={theme} setTheme={setTheme} />
-          <button className="solid" onClick={newSession}>
-            new session
-          </button>
         </div>
       </nav>
 
       <div className="grip grip--rail" title="тяни · двойной клик — сброс" {...rail.gripProps} />
 
       <main className="main">
-        <header className="topbar">
+        <header className="topbar" data-idle={!current}>
           <button className="ghost burger" onClick={() => setRailOpen(true)} aria-label="sessions">
             ≡
           </button>
-          <span className="topbar__title">{current?.title || "новая сессия"}</span>
+          <span className="topbar__title">{current?.title ?? ""}</span>
           <div className="topbar__meta">
             <button className="ghost dock-toggle" onClick={() => setDockOpen(true)} aria-label="док">
               док
@@ -993,9 +1338,42 @@ export default function App() {
 
         <div className="feed" ref={feedRef}>
           {loading && <div className="msg msg--system">загрузка…</div>}
-          {!loading && msgs.length === 0 && (
+          {/* Нет выбранной сессии — приветствие. Сессия появится в журнале
+              только после первого сообщения. */}
+          {!loading && !active && (
+            <section className="hello">
+              <h1 className="hello__mark">snens</h1>
+              <p className="hello__lead">
+                агент с инструментами: терминал, файлы, поиск, память.
+                <br />
+                напиши задачу — сессия появится сама.
+              </p>
+              <dl className="hello__facts">
+                <div>
+                  <dt>модель</dt>
+                  <dd>{model || "—"}</dd>
+                </div>
+                <div>
+                  <dt>сессий</dt>
+                  <dd>{sessions.filter((s) => !s.parent).length}</dd>
+                </div>
+                <div>
+                  <dt>подагентов</dt>
+                  <dd>{sessions.filter((s) => s.parent).length}</dd>
+                </div>
+                <div>
+                  <dt>окружение</dt>
+                  <dd>~/projects</dd>
+                </div>
+              </dl>
+              <p className="hello__hint">
+                enter — отправить · shift+enter — перенос · поиск по прошлым сессиям — слева
+              </p>
+            </section>
+          )}
+          {!loading && active && msgs.length === 0 && (
             <div className="msg msg--system">
-              <div className="msg__main">пустая сессия — напиши первое сообщение.</div>
+              <div className="msg__main">сессия пуста — напиши первое сообщение.</div>
             </div>
           )}
           {active &&
@@ -1058,11 +1436,59 @@ export default function App() {
           )}
         </div>
 
-        <div className="composer">
+        <div
+          className="composer"
+          onDragOver={(e) => {
+            e.preventDefault();
+            e.currentTarget.dataset.drag = "true";
+          }}
+          onDragLeave={(e) => {
+            delete e.currentTarget.dataset.drag;
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            delete e.currentTarget.dataset.drag;
+            attach(e.dataTransfer.files);
+          }}
+        >
+          {pending.length > 0 && (
+            <ul className="composer__files">
+              {pending.map((p) => (
+                <li key={p.id}>
+                  <span>{p.file.name}</span>
+                  <span className="composer__size">{(p.file.size / 1024).toFixed(0)} КБ</span>
+                  <button
+                    className="ghost"
+                    aria-label="убрать"
+                    onClick={() => setPending((prev) => prev.filter((x) => x.id !== p.id))}
+                  >
+                    ×
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
           <div className="composer__box">
+            <button
+              className="composer__attach"
+              title="прикрепить файл"
+              onClick={() => fileInput.current?.click()}
+            >
+              +
+            </button>
+            <input
+              ref={fileInput}
+              type="file"
+              multiple
+              hidden
+              onChange={(e) => {
+                attach(e.target.files);
+                e.target.value = "";
+              }}
+            />
             <textarea
               value={draft}
-              placeholder="печатай… enter — отправить, shift+enter — перенос"
+              placeholder="печатай… enter — отправить, shift+enter — перенос, файлы — кнопкой + или drag&drop"
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
@@ -1085,7 +1511,11 @@ export default function App() {
             </span>
           </span>
           <span className="sb--grow">
-            {current ? `${current.surface} · ${current.state}` : "нет сессии"} · {turns} записей
+            {current
+              ? `${current.parent ? "подагент" : current.surface} · ${current.state}`
+              : "нет сессии"}{" "}
+            · {turns} записей
+            {current?.model && current.model !== model ? ` · ${current.model}` : ""}
           </span>
           <span className="sb--opt">тулов {tools.length}</span>
           <span className="sb--opt">{running ? "ход идёт" : "простой"}</span>
@@ -1095,23 +1525,31 @@ export default function App() {
       <div className="grip grip--dock" title="тяни · двойной клик — сброс" {...dock.gripProps} />
 
       <aside className="dock" aria-label="dock">
+        <ContextWindow msgs={msgs} limit={CTX_LIMIT} />
         <Dock
           tab={dockTab}
           setTab={setDockTab}
           tools={tools}
           session={active ?? ""}
-        />
+        >
+          <Agents sessions={sessions} active={active} onPick={select} />
+        </Dock>
       </aside>
 
       <aside className="dock dock--sheet" data-open={dockOpen} aria-label="dock">
         {dockOpen && (
-          <Dock
-            tab={dockTab}
-            setTab={setDockTab}
-            tools={tools}
-            session={active ?? ""}
-            onClose={() => setDockOpen(false)}
-          />
+          <>
+            <ContextWindow msgs={msgs} limit={CTX_LIMIT} />
+            <Dock
+              tab={dockTab}
+              setTab={setDockTab}
+              tools={tools}
+              session={active ?? ""}
+              onClose={() => setDockOpen(false)}
+            >
+              <Agents sessions={sessions} active={active} onPick={select} />
+            </Dock>
+          </>
         )}
       </aside>
     </div>

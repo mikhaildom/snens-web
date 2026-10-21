@@ -1,0 +1,88 @@
+/* composer и статус-строка */
+
+/* ── composer + статус-строка ───────────────────────────── */
+
+.composer {
+  border-top: var(--bar) solid var(--line);
+  padding: var(--step) calc(var(--step) * 3) calc(var(--step) * 0.5);
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--step) * 0.5);
+}
+
+.composer__box {
+  display: flex;
+  gap: calc(var(--step) * 0.5);
+  align-items: flex-start;
+}
+
+.composer textarea {
+  flex: 1;
+  resize: none;
+  min-height: 44px;
+  max-height: 180px;
+  padding: calc(var(--step) * 0.75);
+  border: var(--bar) solid var(--line);
+  background: var(--paper);
+  font-size: var(--fs-md);
+}
+
+.composer textarea::placeholder {
+  color: var(--ink-2);
+}
+
+.statusbar {
+  display: flex;
+  align-items: stretch;
+  border-top: var(--bar) solid var(--line);
+  background: var(--paper-2);
+  font-size: var(--fs-xs);
+  letter-spacing: 0.06em;
+  overflow: hidden;
+}
+
+.statusbar > span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px calc(var(--step) * 0.75);
+  border-right: var(--bar) solid var(--line);
+  white-space: nowrap;
+}
+
+.statusbar > span:last-child {
+  border-right: 0;
+}
+
+.statusbar .sb--grow {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--ink-2);
+}
+
+.statusbar .sb--model-short {
+  display: none;
+}
+
+.statusbar .sb--key {
+  background: var(--ink);
+  color: var(--paper);
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gauge {
+  width: 56px;
+  height: 8px;
+  border: 1px solid var(--line);
+  display: inline-block;
+}
+
+.gauge span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}

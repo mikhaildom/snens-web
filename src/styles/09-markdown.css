@@ -1,0 +1,139 @@
+/* markdown и KaTeX */
+
+/* ── markdown ──────────────────────────────────────────── */
+
+.markdown {
+  overflow-wrap: anywhere;
+}
+
+.markdown > *:first-child {
+  margin-top: 0;
+}
+
+.markdown > *:last-child {
+  margin-bottom: 0;
+}
+
+.markdown p {
+  margin: 0 0 calc(var(--step) * 0.5);
+}
+
+.markdown h1,
+.markdown h2,
+.markdown h3,
+.markdown h4 {
+  margin: calc(var(--step) * 0.75) 0 calc(var(--step) * 0.5);
+  font-size: var(--fs-md);
+  line-height: 1.3;
+}
+
+.markdown h1 {
+  font-size: var(--fs-lg);
+}
+
+.markdown ul,
+.markdown ol {
+  margin: 0 0 calc(var(--step) * 0.5);
+  padding-left: calc(var(--step) * 2);
+}
+
+.markdown li {
+  margin: 1px 0;
+}
+
+.markdown li > p {
+  margin: 0;
+}
+
+.markdown a {
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 2px;
+}
+
+.markdown a:hover {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.markdown blockquote {
+  margin: 0 0 calc(var(--step) * 0.5);
+  padding-left: calc(var(--step) * 0.75);
+  border-left: var(--bar) solid var(--hair);
+  color: var(--ink-2);
+}
+
+.markdown code {
+  background: var(--paper-2);
+  padding: 0 2px;
+  font-size: var(--fs-sm);
+}
+
+.markdown pre.code {
+  margin: 0 0 calc(var(--step) * 0.5);
+}
+
+.markdown pre.code code {
+  background: transparent;
+  padding: 0;
+  font-size: inherit;
+}
+
+.markdown table {
+  border-collapse: collapse;
+  margin: 0 0 calc(var(--step) * 0.5);
+  font-size: var(--fs-sm);
+  display: block;
+  overflow-x: auto;
+}
+
+.markdown th,
+.markdown td {
+  border: 1px solid var(--hair);
+  padding: 2px calc(var(--step) * 0.5);
+  text-align: left;
+}
+
+.markdown th {
+  background: var(--paper-2);
+}
+
+.markdown hr {
+  border: 0;
+  border-top: var(--bar) solid var(--hair);
+  margin: calc(var(--step) * 0.75) 0;
+}
+
+.markdown .math-display {
+  display: block;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: calc(var(--step) * 0.25) 0;
+}
+
+/* KaTeX: свойства брутализма — без радиусов, наследуем цвет темы */
+.katex {
+  color: inherit;
+}
+
+pre.code .add {
+  color: var(--ok);
+}
+pre.code .del {
+  color: var(--accent);
+}
+pre.code .dim {
+  color: var(--ink-2);
+}
+
+.msg--pending .msg__main > *:last-child::after {
+  content: "▊";
+  animation: blink 1s steps(2, start) infinite;
+}
+
+@keyframes blink {
+  to {
+    visibility: hidden;
+  }
+}

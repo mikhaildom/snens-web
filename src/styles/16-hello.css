@@ -1,0 +1,70 @@
+/* приветствие без сессии */
+
+/* ── приветствие ───────────────────────────────────────── */
+
+/* Без сессии верхняя строка пустая: заголовка нет, и «новая сессия» в ней
+   дублировала бы приветствие. */
+.topbar[data-idle="true"] .topbar__title {
+  visibility: hidden;
+}
+
+.hello {
+  margin: auto;
+  max-width: 62ch;
+  padding: calc(var(--step) * 2) 0;
+}
+
+.hello__mark {
+  font-size: 40px;
+  line-height: 1;
+  letter-spacing: 0.18em;
+  margin: 0 0 calc(var(--step) * 1.5);
+  font-weight: 700;
+  background: var(--ink);
+  color: var(--paper);
+  padding: 6px 10px;
+  display: inline-block;
+}
+
+.hello__lead {
+  margin: 0 0 calc(var(--step) * 2);
+  color: var(--ink-2);
+  line-height: 1.6;
+}
+
+.hello__facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0;
+  border: var(--bar) solid var(--line);
+  margin: 0 0 calc(var(--step) * 2);
+}
+
+.hello__facts > div {
+  padding: calc(var(--step) * 0.5) var(--step);
+  border-right: 1px solid var(--hair);
+}
+
+.hello__facts > div:last-child {
+  border-right: 0;
+}
+
+.hello__facts dt {
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ink-2);
+}
+
+.hello__facts dd {
+  margin: 2px 0 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hello__hint {
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--ink-2);
+}

@@ -1,0 +1,125 @@
+/* рельса сессий */
+
+/* ── rail ───────────────────────────────────────────────── */
+
+.rail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--step);
+  border-right: var(--bar) solid var(--line);
+  background: var(--paper-2);
+  min-height: 0;
+}
+
+.rail__brand {
+  display: flex;
+  align-items: baseline;
+  gap: calc(var(--step) * 0.75);
+  padding: var(--step);
+  border-bottom: var(--bar) solid var(--line);
+}
+
+.rail__mark {
+  background: var(--ink);
+  color: var(--paper);
+  padding: 0 4px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  font-size: var(--fs-lg);
+}
+
+.rail__ver {
+  color: var(--ink-2);
+  font-size: var(--fs-xs);
+}
+
+.rail__close {
+  display: none;
+  margin-left: auto;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  padding: 0 4px;
+}
+
+.rail__section {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: calc(var(--step) * 0.5) var(--step) 0;
+  color: var(--ink-2);
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.rail__list {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 var(--step);
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.rail__item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  border-bottom: 1px solid var(--hair);
+  background: transparent;
+  padding: calc(var(--step) * 0.5) var(--step);
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: var(--fs-sm);
+}
+
+.rail__item small {
+  display: block;
+  color: var(--ink-2);
+  font-size: var(--fs-xs);
+}
+
+.rail__item:hover {
+  background: var(--paper-3);
+  color: var(--ink);
+}
+
+.rail__item[aria-current="true"] {
+  box-shadow: inset 3px 0 0 var(--accent);
+  background: var(--paper-3);
+}
+
+.rail__item[aria-current="true"] small {
+  color: var(--ink-2);
+}
+
+.rail__foot {
+  margin-top: auto;
+  border-top: var(--bar) solid var(--line);
+  padding: var(--step);
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--step) * 0.5);
+}
+
+.themebar {
+  display: flex;
+  border: var(--bar) solid var(--line);
+}
+
+.themebar button {
+  flex: 1;
+  border: 0;
+  border-right: var(--bar) solid var(--line);
+  background: transparent;
+}
+
+.themebar button:last-child {
+  border-right: 0;
+}
+
+.themebar button[aria-pressed="true"] {
+  background: var(--ink);
+  color: var(--paper);
+}

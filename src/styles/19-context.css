@@ -1,0 +1,126 @@
+/* окно контекста: шкала с сегментами */
+
+/* ── окно контекста: большая шкала с сегментами ────────── */
+
+.context {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--step) * 0.5);
+  padding: var(--step);
+  border-bottom: var(--bar) solid var(--line);
+}
+
+.context__head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--step);
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ink-2);
+}
+
+.context__head b {
+  color: var(--ink);
+  font-size: var(--fs-sm);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.context__head span:last-child {
+  margin-left: auto;
+}
+
+.context__bar {
+  display: flex;
+  height: 22px;
+  border: var(--bar) solid var(--line);
+  background: var(--paper);
+  overflow: hidden;
+}
+
+/* Доли считаются от окна, а сумма может его превысить (окно переполнено).
+   Ширины задаются процентами, лишнее срезает overflow у полосы — поэтому
+   сегмент не должен сжиматься флексом. */
+.context__seg {
+  height: 100%;
+  min-width: 1px;
+  flex: 0 0 auto;
+}
+
+.context__seg[data-kind="system"] {
+  background: var(--ink-2);
+}
+
+.context__seg[data-kind="messages"] {
+  background: var(--ink);
+}
+
+.context__seg[data-kind="toolCalls"] {
+  background: color-mix(in srgb, var(--accent) 55%, var(--paper));
+}
+
+.context__seg[data-kind="toolResults"] {
+  background: var(--accent);
+}
+
+.context__seg[data-kind="images"] {
+  background: var(--ok);
+}
+
+.context__seg[data-kind="free"] {
+  background: var(--paper-3);
+  flex: 1;
+}
+
+.context__legend {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2px var(--step);
+  font-size: var(--fs-xs);
+  color: var(--ink-2);
+}
+
+.context__legend > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.context__foot {
+  font-size: var(--fs-xs);
+  color: var(--ink-2);
+}
+
+.context__legend i {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 4px;
+  vertical-align: baseline;
+}
+
+.context__legend i[data-kind="system"] {
+  background: var(--ink-2);
+}
+
+.context__legend i[data-kind="messages"] {
+  background: var(--ink);
+}
+
+.context__legend i[data-kind="toolCalls"] {
+  background: color-mix(in srgb, var(--accent) 55%, var(--paper));
+}
+
+.context__legend i[data-kind="toolResults"] {
+  background: var(--accent);
+}
+
+.context__legend i[data-kind="images"] {
+  background: var(--ok);
+}
+
+.context__legend i[data-kind="free"] {
+  background: var(--paper-3);
+  border: 1px solid var(--hair);
+}

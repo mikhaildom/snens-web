@@ -1,0 +1,83 @@
+/* подагенты в доке */
+
+/* ── подагенты в доке ──────────────────────────────────── */
+
+.agents {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.agents__filter {
+  display: flex;
+  align-items: center;
+  gap: var(--step);
+  padding: 2px var(--step);
+  border-bottom: 1px solid var(--hair);
+  font-size: var(--fs-xs);
+  color: var(--ink-2);
+}
+
+.agents__filter button {
+  color: var(--ink-2);
+  font-size: var(--fs-xs);
+}
+
+.agents__filter button[aria-pressed="true"] {
+  color: var(--accent);
+}
+
+.agents__count {
+  margin-left: auto;
+}
+
+.agents__row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid var(--hair);
+  background: transparent;
+  padding: 3px var(--step);
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: var(--fs-sm);
+  text-align: left;
+}
+
+.agents__row:hover {
+  background: var(--paper-3);
+  color: var(--ink);
+}
+
+.agents__row[aria-current="true"] {
+  box-shadow: inset 3px 0 0 var(--accent);
+  background: var(--paper-3);
+}
+
+.agents__state {
+  width: 6px;
+  height: 6px;
+  background: var(--hair);
+  flex: 0 0 auto;
+}
+
+.agents__state[data-state="running"],
+.agents__state[data-state="stopping"] {
+  background: var(--accent);
+}
+
+.agents__title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agents__meta {
+  color: var(--ink-2);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}

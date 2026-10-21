@@ -1,0 +1,106 @@
+/* лента и шапка сообщения */
+
+/* ── лента: транскрипт, без рамок ───────────────────────── */
+
+.feed {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: calc(var(--step) * 2) calc(var(--step) * 3);
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--step) * 2.5);
+}
+
+.msg,
+.steps {
+  --rule: var(--line);
+  border-left: var(--bar) solid var(--rule);
+  padding-left: calc(var(--step) * 1.25);
+  width: 100%;
+}
+
+/* Читаемую ширину держит только текст. Шапки, блоки тулов и пачки шагов идут
+   на всю ленту — иначе время у пользователя и у тула оказывается в разных
+   столбцах. */
+.msg__main > .markdown,
+.msg__main > details.reasoning,
+.step > .markdown,
+.step > details.reasoning,
+.tool__body {
+  max-width: 92ch;
+}
+
+.msg--user {
+  --rule: var(--accent);
+}
+
+.msg--tool,
+.msg--system {
+  --rule: var(--hair);
+}
+
+.msg--approval,
+.msg--error {
+  --rule: var(--accent);
+}
+
+.msg--error .msg__head .who {
+  color: var(--accent);
+}
+
+.approval__actions {
+  display: flex;
+  gap: calc(var(--step) * 0.5);
+  margin-top: calc(var(--step) * 0.75);
+}
+
+.msg__main > * + * {
+  margin-top: calc(var(--step) * 0.75);
+}
+
+.dock__empty {
+  padding: var(--step);
+  font-size: var(--fs-sm);
+  color: var(--ink-2);
+  line-height: 1.6;
+}
+
+.dock__tabs button b.live {
+  color: var(--accent);
+  opacity: 1;
+}
+
+/* ── шапка сообщения: одна строка, время всегда справа ─── */
+
+.msg__head {
+  display: flex;
+  align-items: baseline;
+  gap: calc(var(--step) * 0.75);
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ink-2);
+  margin-bottom: 2px;
+}
+
+.msg__head .who {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.msg--user .msg__head .who {
+  color: var(--accent);
+}
+
+.msg--tool .msg__head .who,
+.msg--system .msg__head .who {
+  color: var(--ink-2);
+}
+
+.msg__head time,
+.steps__head time {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}

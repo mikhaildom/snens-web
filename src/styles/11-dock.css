@@ -1,0 +1,154 @@
+/* док: вкладки, окна, логи тулов */
+
+/* ── док: рабочие окна + логи тулов ─────────────────────── */
+
+.dock {
+  border-left: 0;
+  background: var(--paper-2);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.dock--sheet {
+  display: none;
+}
+
+.dock__tabs {
+  display: flex;
+  align-items: stretch;
+  border-bottom: var(--bar) solid var(--line);
+  background: var(--paper-3);
+}
+
+.dock__tabs button {
+  flex: 1;
+  border: 0;
+  border-right: var(--bar) solid var(--line);
+  background: transparent;
+  color: var(--ink-2);
+  padding: 3px var(--step);
+}
+
+.dock__tabs button:last-child {
+  border-right: 0;
+}
+
+.dock__tabs button:hover {
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.dock__tabs button[aria-selected="true"] {
+  background: var(--ink);
+  color: var(--paper);
+  font-weight: 700;
+}
+
+.dock__tabs button b {
+  font-weight: 400;
+  opacity: 0.6;
+}
+
+.dock__tabs .dock__close {
+  flex: 0 0 auto;
+  border-right: 0;
+  border-left: var(--bar) solid var(--line);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.dock__body {
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.win__arg {
+  color: var(--ink-2);
+  font-size: var(--fs-xs);
+  text-transform: none;
+  letter-spacing: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.win {
+  border-bottom: 1px solid var(--hair);
+}
+
+.win__bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 3px var(--step);
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: var(--fs-sm);
+  text-align: left;
+}
+
+.win__bar:hover {
+  background: var(--paper-3);
+  color: var(--ink);
+}
+
+.win__kind {
+  color: var(--ink-2);
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.win__state {
+  flex: 0 0 auto;
+  margin-left: auto;
+  font-size: var(--fs-xs);
+  color: var(--ink-2);
+}
+
+.win__state[data-state="running"] {
+  color: var(--accent);
+}
+
+.win__body {
+  padding: var(--step);
+  font-size: var(--fs-sm);
+  border-top: 1px solid var(--hair);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.win__body pre {
+  margin: 0;
+  font-size: var(--fs-sm);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--ink);
+}
+
+.skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.skeleton i {
+  display: block;
+  height: 8px;
+  background: var(--paper-3);
+}
+
+.urlbar {
+  border: 1px solid var(--hair);
+  padding: 1px 4px;
+  font-size: var(--fs-xs);
+  color: var(--ink-2);
+}

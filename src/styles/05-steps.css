@@ -1,0 +1,48 @@
+/* свёрнутая пачка шагов */
+
+/* ── свёрнутая пачка шагов ─────────────────────────────── */
+
+.steps {
+  --rule: var(--hair);
+}
+
+.steps__head {
+  display: flex;
+  align-items: baseline;
+  gap: calc(var(--step) * 0.75);
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ink-2);
+  text-align: left;
+}
+
+.steps__head:hover {
+  background: var(--paper-2);
+  color: var(--ink);
+}
+
+.steps__caret {
+  color: var(--accent);
+}
+
+.steps__dim {
+  color: var(--ink-2);
+}
+
+.steps__body {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--step) * 1.5);
+  margin-top: calc(var(--step) * 0.75);
+  padding-left: calc(var(--step) * 0.75);
+  border-left: 1px solid var(--hair);
+}
+
+.step > * + * {
+  margin-top: calc(var(--step) * 0.5);
+}

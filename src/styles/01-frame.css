@@ -1,0 +1,56 @@
+/* каркас приложения и тяга краёв */
+
+/* ── каркас ─────────────────────────────────────────────── */
+
+.app {
+  display: grid;
+  grid-template-columns:
+    var(--rail-w, 224px) 5px minmax(0, 1fr) 5px var(--dock-w, 320px);
+  height: 100%;
+}
+
+/* тяга за край панели */
+
+.grip {
+  position: relative;
+  cursor: col-resize;
+  background: var(--paper-2);
+  touch-action: none;
+}
+
+.grip::before {
+  content: "";
+  position: absolute;
+  inset: 0 2px;
+  background: var(--hair);
+  opacity: 0;
+  transition: opacity 80ms linear;
+}
+
+.grip:hover::before,
+.grip:focus-visible::before {
+  opacity: 1;
+  background: var(--accent);
+}
+
+.grip:active::before {
+  opacity: 1;
+  background: var(--accent);
+}
+
+.grip--rail {
+  border-right: var(--bar) solid var(--line);
+}
+
+.grip--dock {
+  border-left: var(--bar) solid var(--line);
+}
+
+.dock-toggle {
+  display: none;
+  border: var(--bar) solid var(--line);
+  padding: 0 4px;
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}

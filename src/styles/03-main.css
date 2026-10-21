@@ -1,0 +1,61 @@
+/* центр: топбар и часы состояния */
+
+/* ── центр ──────────────────────────────────────────────── */
+
+.main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: var(--step);
+  padding: calc(var(--step) * 0.5) var(--step);
+  border-bottom: var(--bar) solid var(--line);
+  font-size: var(--fs-xs);
+  letter-spacing: 0.08em;
+}
+
+.topbar__title {
+  font-weight: 700;
+  font-size: var(--fs-sm);
+}
+
+.topbar__meta {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--step);
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+.chip {
+  border: var(--bar) solid var(--line);
+  padding: 0 4px;
+  background: transparent;
+  color: var(--ink);
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+}
+
+.chip--accent {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  background: var(--ok);
+  display: inline-block;
+}
+
+.burger {
+  display: none;
+  font-size: var(--fs-lg);
+  line-height: 1;
+}

@@ -1,0 +1,32 @@
+/* голосовые и видео вложений */
+
+/* ── вложения человека: голосовые и видео ──────────────── */
+
+.shots video {
+  max-width: min(100%, 360px);
+  border: 1px solid var(--hair);
+  background: var(--paper-3);
+}
+
+.voice {
+  margin: calc(var(--step) * 0.5) 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border: 1px solid var(--hair);
+  background: var(--paper-2);
+  padding: calc(var(--step) * 0.5);
+}
+
+.voice audio {
+  width: min(100%, 320px);
+  height: 32px;
+  display: block;
+}
+
+.voice figcaption {
+  font-size: var(--fs-xs);
+  color: var(--ink-2);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}

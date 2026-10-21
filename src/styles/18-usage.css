@@ -1,0 +1,57 @@
+/* расход хода */
+
+/* ── расход хода ───────────────────────────────────────── */
+
+/* Цифры хода прячутся, пока не наведёшь на сообщение/шаг. Место под них
+   зарезервировано (visibility, а не display), чтобы шапка не дёргалась. */
+.usage {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+  visibility: hidden;
+}
+
+.msg:hover .usage,
+.msg:focus-within .usage,
+.step:hover .usage,
+.steps:hover .usage {
+  visibility: visible;
+}
+
+.usage__hit {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  color: var(--ink);
+}
+
+/* Иконка базы: тонкий штрих, иначе на мелком размере сливается в плашку. */
+.usage__db {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.85;
+  /* Иконка не должна наследовать масштаб строки: на 10–12px любой лишний
+     штрих превращает базу в плашку. */
+  vector-effect: non-scaling-stroke;
+  flex: 0 0 auto;
+}
+
+.usage__cost {
+  color: var(--accent);
+}
+
+.step--via {
+  border-left-color: var(--hair);
+}
+
+.via__body {
+  max-width: 92ch;
+  color: var(--ink-2);
+  font-size: var(--fs-sm);
+}

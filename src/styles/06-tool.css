@@ -1,0 +1,96 @@
+/* вызов тула одним блоком */
+
+/* ── вызов тула: вызов и результат — один блок ─────────── */
+
+.tool {
+  border: 1px solid var(--hair);
+  background: var(--paper-2);
+}
+
+.tool[data-state="error"] {
+  border-color: var(--accent);
+}
+
+.tool__head {
+  display: flex;
+  align-items: baseline;
+  gap: calc(var(--step) * 0.5);
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 1px calc(var(--step) * 0.5);
+  font-size: var(--fs-xs);
+  text-transform: none;
+  letter-spacing: 0;
+  text-align: left;
+  color: var(--ink);
+}
+
+.tool__head:hover {
+  background: var(--paper-3);
+  color: var(--ink);
+}
+
+.tool__mark {
+  color: var(--ok);
+  width: 1ch;
+}
+
+.tool[data-state="error"] .tool__mark {
+  color: var(--accent);
+}
+
+.tool[data-state="running"] .tool__mark {
+  color: var(--accent);
+  animation: blink 1s steps(2, start) infinite;
+}
+
+.tool__name {
+  font-weight: 700;
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+
+.tool__arg {
+  color: var(--ink-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  /* min-width: 0 — иначе флекс-элемент не сжимается и выдавливает имя тула */
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.tool__meta {
+  margin-left: auto;
+  display: flex;
+  gap: calc(var(--step) * 0.5);
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.tool__ms {
+  color: var(--ink);
+}
+
+.tool__body {
+  border-top: 1px solid var(--hair);
+  padding: calc(var(--step) * 0.5);
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--step) * 0.5);
+  min-width: 0;
+}
+
+.tool__body .code {
+  background: var(--paper);
+  border-left: 0;
+  padding: calc(var(--step) * 0.5);
+  max-height: 24em;
+  overflow: auto;
+}
+
+.tool__out {
+  color: var(--ink-2);
+}

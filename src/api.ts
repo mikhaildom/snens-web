@@ -46,7 +46,11 @@ export interface Usage {
 export interface TranscriptMessage {
   seq: number;
   ts: number;
-  role: "user" | "assistant" | "tool";
+  /**
+   * Роль записи. `recall` — служебная справка долгой памяти: ядро отдаёт её
+   * только по запросу (`recall=1`), и клиент рисует её серой строкой.
+   */
+  role: "user" | "assistant" | "tool" | "recall";
   content: string | null;
   source?: string;
   reasoning?: string;
@@ -150,7 +154,9 @@ export const api = {
       body: JSON.stringify({ command_id: uuid(), surface }),
     }),
 
-  history: (id: string) => j<History>(`/v1/sessions/${id}/history`),
+  /** `recall: true` — включить в выдачу справку долгой памяти (галочка в настройках). */
+  history: (id: string, recall = false) =>
+    j<History>(`/v1/sessions/${id}/history${recall ? "?recall=1" : ""}`),
 
   send: (id: string, text: string, attachmentIds: string[] = []) =>
     j<unknown>(`/v1/sessions/${id}/messages`, {

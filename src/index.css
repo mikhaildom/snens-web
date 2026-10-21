@@ -767,6 +767,127 @@ textarea:focus-visible,
   white-space: nowrap;
 }
 
+/* ── настройки ─────────────────────────────────────────── */
+
+.settings {
+  border: var(--bar) solid var(--line);
+}
+
+.settings__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: calc(var(--step) * 0.5) var(--step);
+  font-size: var(--fs-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.settings__body {
+  border-top: var(--bar) solid var(--line);
+  padding: var(--step);
+  display: flex;
+  flex-direction: column;
+  gap: var(--step);
+}
+
+.settings__row {
+  display: flex;
+  align-items: center;
+  gap: var(--step);
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-2);
+}
+
+.settings__row > span {
+  flex: 0 0 auto;
+}
+
+.settings__row > .themebar {
+  flex: 1;
+}
+
+.settings__check {
+  display: flex;
+  gap: calc(var(--step) * 0.75);
+  align-items: flex-start;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+
+.settings__check input {
+  margin: 2px 0 0;
+  accent-color: var(--accent);
+}
+
+.settings__check small {
+  display: block;
+  color: var(--ink-2);
+  font-size: var(--fs-xs);
+}
+
+/* ── справка памяти: серая строка над ходом ──────────── */
+
+details.recall {
+  border-left: 1px solid var(--hair);
+  padding-left: calc(var(--step) * 0.75);
+  color: var(--ink-2);
+  font-size: var(--fs-xs);
+}
+
+details.recall > summary {
+  display: flex;
+  gap: calc(var(--step) * 0.75);
+  align-items: baseline;
+  cursor: pointer;
+  list-style: none;
+  opacity: 0.75;
+}
+
+details.recall > summary:hover {
+  opacity: 1;
+}
+
+details.recall > summary::before {
+  content: "▸";
+}
+
+details.recall[open] > summary::before {
+  content: "▾";
+}
+
+details.recall > summary::-webkit-details-marker {
+  display: none;
+}
+
+.recall__mark {
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.recall__count {
+  color: var(--hair);
+}
+
+.recall__peek {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.recall__body {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin-top: 2px;
+  padding-left: var(--step);
+}
+
 /* ── reasoning, свёрнутый по умолчанию ─────────────────── */
 
 details.reasoning {

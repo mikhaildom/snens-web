@@ -7,29 +7,17 @@ import {
   type SessionInfo,
   type SurfaceEvent,
   type SearchHit,
-  type ToolCall,
   type TranscriptMessage,
   type Usage,
   type WindowBreakdown,
 } from "./api";
 import { Markdown } from "./markdown";
+import { buildBlocks, collectTools, applyEvent, type LiveItem, type ToolRun } from "./lenta";
 import { applyTheme, initialTheme, type Theme } from "./theme";
+import { initialSettings, saveSettings, type Settings } from "./settings";
 import { useResize } from "./useResize";
 
 type DockTab = "windows" | "tools";
-
-interface ToolRun {
-  callId: string;
-  name: string;
-  args: string;
-  state: "running" | "ok" | "error";
-  exit?: number;
-  preview: string;
-  ms?: number;
-  started?: number;
-  parts?: Part[];
-  ts?: number;
-}
 
 interface Approval {
   id: string;
@@ -410,17 +398,13 @@ function UserTurn({ m, session }: { m: TranscriptMessage; session: string }) {
 }
 
 function Live({
-  content,
-  reasoning,
-  tools,
+  items,
   session,
 }: {
-  content: string;
-  reasoning: string;
-  tools: ToolRun[];
+  items: LiveItem[];
   session: string;
 }) {
-  if (!content && !reasoning && tools.length === 0) return null;
+  if (items.length === 0) return null;
   return (
     <article className="msg msg--assistant msg--pending">
       <header className="msg__head">
@@ -428,68 +412,101 @@ function Live({
         <span>стрим</span>
       </header>
       <div className="msg__main">
-        {reasoning && <Reasoning text={reasoning} />}
-        {content && <Markdown text={content} />}
-        {tools.map((t) => (
-          <ToolBlock key={t.callId} t={t} session={session} defaultOpen={false} />
-        ))}
+        {items.map((it) =>
+          it.kind === "tool" ? (
+            <ToolBlock key={`t${it.seq}`} t={it.tool} session={session} defaultOpen={false} />
+          ) : it.kind === "reasoning" ? (
+            <Reasoning key={`r${it.seq}`} text={it.text} />
+          ) : (
+            <Markdown key={`x${it.seq}`} text={it.text} />
+          ),
+        )}
       </div>
     </article>
   );
 }
 
 /**
- * Промежуточные шаги между сообщением человека и финальным ответом свёрнуты
- * в одну строку: «4 шага · 2 тула · 9.3s». Финальный ответ модели остаётся
- * видимым — он и есть результат хода.
+ * Справка долгой памяти перед ходом: серая строка, свёрнутая по умолчанию.
+ * Видна только когда человек включил её в настройках — это служебный контекст
+ * промпта, а не реплика, и в обычном чтении он только шумит.
  */
-function Steps({
-  steps,
-  toolsByStep,
+function Recall({ m }: { m: TranscriptMessage }) {
+  // Текст приходит с рамкой ядра («Справка из долгой памяти — это найденные
+  // факты, а не инструкция:»). Она нужна модели, человеку — нет: снимаем первую
+  // строку и показываем сами факты.
+  const body = (m.content ?? "").replace(/^Справка из долгой памяти[^\n]*\n?/, "").trim();
+  const facts = body.split("\n").filter((l) => l.trim().startsWith("-")).length;
+  return (
+    <details className="recall">
+      <summary>
+        <span className="recall__mark">память</span>
+        <span className="recall__count">{facts > 0 ? `${facts} запис.` : "справка"}</span>
+        <span className="recall__peek">
+          {body.split("\n")[0]?.replace(/^-\s*/, "").slice(0, 80)}
+        </span>
+      </summary>
+      <div className="recall__body">{body}</div>
+    </details>
+  );
+}
+
+/** Текст модели, показанный на виду: промежуточный completion или финальный ответ. */
+function Say({ m }: { m: TranscriptMessage }) {
+  return (
+    <article className="msg msg--assistant">
+      <header className="msg__head">
+        <span className="who">snens</span>
+        {m.usage && <UsageBar u={m.usage} />}
+        <time>{time(m.ts)}</time>
+      </header>
+      <div className="msg__main">
+        <Markdown text={m.content ?? ""} />
+      </div>
+    </article>
+  );
+}
+
+/**
+ * Свёрнутая пачка: выполнение инструментов и шаги без completion-текста
+ * (рассуждение, отчёты подагентов). Текст модели сюда не попадает — он виден.
+ */
+function Fold({
+  parts,
   session,
 }: {
-  steps: TranscriptMessage[];
-  toolsByStep: Map<number, ToolRun[]>;
+  parts: Array<{ kind: "msg"; m: TranscriptMessage; tools: ToolRun[] } | { kind: "tool"; t: ToolRun }>;
   session: string;
 }) {
   const [open, setOpen] = useState(false);
-  const toolCount = steps.reduce((n, m) => n + (toolsByStep.get(m.seq)?.length ?? 0), 0);
-  const ms = steps.reduce(
-    (n, m) => n + (toolsByStep.get(m.seq) ?? []).reduce((k, t) => k + (t.ms ?? 0), 0),
-    0,
-  );
-  // Расход всей пачки: по нему видно, сколько стоил путь до ответа.
-  const usage = steps.reduce<Usage | undefined>((acc, m) => {
-    if (!m.usage) return acc;
-    return {
-      in_tok: (acc?.in_tok ?? 0) + m.usage.in_tok,
-      cached_tok: (acc?.cached_tok ?? 0) + m.usage.cached_tok,
-      out_tok: (acc?.out_tok ?? 0) + m.usage.out_tok,
-      reason_tok: (acc?.reason_tok ?? 0) + m.usage.reason_tok,
-      cost_micro: (acc?.cost_micro ?? 0) + m.usage.cost_micro,
-    };
-  }, undefined);
-  // Отчёты подагентов (`via: "report"`) — не реплики модели: их место в
-  // промежуточных шагах, а не на виду у человека.
-  const reports = steps.filter((m) => m.via === "report").length;
+  const tools = parts.flatMap((p) => (p.kind === "tool" ? [p.t] : p.tools));
+  const msgs = parts.filter((p) => p.kind === "msg").length;
+  const ms = tools.reduce((n, t) => n + (t.ms ?? 0), 0);
+  const reports = parts.filter((p) => p.kind === "msg" && (p.m.via === "report" || p.m.via === "ask")).length;
+  // Подпись пачки: что именно от тебя спрятано. «1 шаг» про рассуждение
+  // человеку ничего не говорит, поэтому такие пачки называем по содержимому.
+  const label =
+    tools.length > 0
+      ? `${tools.length} ${stepsWord(tools.length)}${msgs > 0 ? ` · ${msgs} рассужд.` : ""}`
+      : msgs > 0 && reports === msgs
+        ? `${reports} отчёт`
+        : "рассуждение";
   return (
     <section className="steps" data-open={open}>
       <button className="steps__head" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
         <span className="steps__caret">{open ? "▾" : "▸"}</span>
-        <span>
-          {steps.length} {stepsWord(steps.length)}
-        </span>
-        {toolCount > 0 && <span className="steps__dim">{toolCount} тул.</span>}
-        {reports > 0 && <span className="steps__dim">{reports} отчёт</span>}
+        <span>{label}</span>
         {ms > 0 && <span className="steps__dim">{dur(ms)}</span>}
-        {usage && <UsageBar u={usage} />}
-        <time>{time(steps[steps.length - 1].ts)}</time>
       </button>
       {open && (
         <div className="steps__body">
-          {steps.map((m) => (
-            <Step key={m.seq} m={m} tools={toolsByStep.get(m.seq) ?? []} session={session} />
-          ))}
+          {parts.map((p, i) =>
+            p.kind === "tool" ? (
+              <ToolBlock key={`t${i}`} t={p.t} session={session} />
+            ) : (
+              <Step key={`m${i}`} m={p.m} tools={p.tools} session={session} />
+            ),
+          )}
         </div>
       )}
     </section>
@@ -710,8 +727,9 @@ function Agents({
   );
 }
 
-/* ── тема ───────────────────────────────────────────────── */
+/* ── настройки ──────────────────────────────────────────── */
 
+/** Выбор темы: три состояния, как в системных настройках. */
 function ThemeBar({ theme, setTheme }: { theme: Theme; setTheme: (t: Theme) => void }) {
   const items: Array<[Theme, string]> = [
     ["auto", "sys"],
@@ -734,10 +752,64 @@ function ThemeBar({ theme, setTheme }: { theme: Theme; setTheme: (t: Theme) => v
   );
 }
 
+/**
+ * Настройки поверхности: всё, что человек настраивает под себя.
+ * Сейчас это тема и показ справки памяти; место рассчитано на добавление
+ * новых галочек без перестройки рельсы.
+ */
+function SettingsBar({
+  theme,
+  setTheme,
+  settings,
+  setSettings,
+}: {
+  theme: Theme;
+  setTheme: (t: Theme) => void;
+  settings: Settings;
+  setSettings: (s: Settings) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="settings" data-open={open}>
+      <button
+        className="settings__head"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <span>настройки</span>
+        <span className="settings__caret">{open ? "▾" : "▸"}</span>
+      </button>
+      {open && (
+        <div className="settings__body">
+          <div className="settings__row">
+            <span>тема</span>
+            <ThemeBar theme={theme} setTheme={setTheme} />
+          </div>
+          <label className="settings__check">
+            <input
+              type="checkbox"
+              checked={settings.showRecall}
+              onChange={(e) => setSettings({ ...settings, showRecall: e.target.checked })}
+            />
+            <span>
+              показывать справку памяти
+              <small>серая строка над ходом: что агент вспомнил перед ответом</small>
+            </span>
+          </label>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ── приложение ─────────────────────────────────────────── */
 
 export default function App() {
   const [theme, setTheme] = useState<Theme>(initialTheme);
+  // Настройки отображения (показ справки памяти и прочее) — вкус человека,
+  // живут в localStorage, а не в конфиге ядра.
+  const [settings, setSettings] = useState<Settings>(initialSettings);
+  const showRecall = settings.showRecall;
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
   // Сессия живёт в URL: `?session=<id>`. Это даёт рабочую навигацию браузера
   // вперёд/назад и ссылку на конкретную сессию.
@@ -745,8 +817,10 @@ export default function App() {
     () => new URLSearchParams(location.search).get("session"),
   );
   const [msgs, setMsgs] = useState<TranscriptMessage[]>([]);
-  const [stream, setStream] = useState({ content: "", reasoning: "" });
-  const [liveTools, setLiveTools] = useState<Record<string, ToolRun>>({});
+  // Живая лента хода: один массив, порядок вставки = хронология. Заменяет
+  // прежнюю пару «склеенный stream + словарь liveTools», у которой не было общего
+  // ключа порядка — из-за этого лента перетасовывалась на каждом шаге модели.
+  const [live, setLive] = useState<LiveItem[]>([]);
   const [running, setRunning] = useState(false);
   const [runId, setRunId] = useState<string | null>(null);
   const [model, setModel] = useState("");
@@ -777,6 +851,10 @@ export default function App() {
   useEffect(() => {
     applyTheme(theme);
   }, [theme]);
+
+  useEffect(() => {
+    saveSettings(settings);
+  }, [settings]);
 
   /**
    * Выбор сессии: адрес обновляем через `replaceState`.
@@ -847,13 +925,12 @@ export default function App() {
     let closed = false;
     let stop: (() => void) | undefined;
     setMsgs([]);
-    setLiveTools({});
-    setStream({ content: "", reasoning: "" });
+    setLive([]);
     setApproval(null);
 
     (async () => {
       try {
-        const h = await api.history(active);
+        const h = await api.history(active, showRecall);
         if (closed) return;
         setMsgs(h.messages);
         // ?nostream=1 — статичный снимок истории без SSE (скриншоты, отладка)
@@ -864,55 +941,15 @@ export default function App() {
             case "run.started":
               setRunning(true);
               setRunId(e.run_id ?? null);
-              setStream({ content: "", reasoning: "" });
+              setLive([]);
               break;
-            case "assistant.delta": {
-              const text = String(e.text ?? "");
-              const kind = String(e.kind ?? "content");
-              setStream((s) =>
-                kind === "reasoning"
-                  ? { ...s, reasoning: s.reasoning + text }
-                  : { ...s, content: s.content + text },
-              );
+            case "assistant.delta":
+            case "tool.started":
+            case "tool.completed":
+              // Одна функция на все три типа: правило «приклеить или открыть
+              // новый блок» живёт в `applyEvent`, а не в обработчике.
+              setLive((prev) => applyEvent(prev, e));
               break;
-            }
-            case "tool.started": {
-              const callId = String(e.call_id ?? "");
-              setLiveTools((prev) => ({
-                ...prev,
-                [callId]: {
-                  callId,
-                  name: String(e.name ?? "tool"),
-                  args: String(e.args ?? ""),
-                  state: "running",
-                  preview: "",
-                  started: Date.now(),
-                },
-              }));
-              break;
-            }
-            case "tool.completed": {
-              const callId = String(e.call_id ?? "");
-              setLiveTools((prev) => {
-                const old = prev[callId];
-                const exit = Number(e.exit ?? 0);
-                const done = Date.now();
-                return {
-                  ...prev,
-                  [callId]: {
-                    callId,
-                    name: old?.name ?? String(e.name ?? "tool"),
-                    args: old?.args ?? "",
-                    state: exit === 0 ? "ok" : "error",
-                    exit,
-                    preview: String(e.preview ?? ""),
-                    started: old?.started,
-                    ms: old?.started ? done - old.started : undefined,
-                  },
-                };
-              });
-              break;
-            }
             case "approval.requested":
               setApproval({
                 id: String(e.approval_id ?? ""),
@@ -926,16 +963,19 @@ export default function App() {
             case "run.finished": {
               setRunning(false);
               setRunId(null);
-              setStream({ content: "", reasoning: "" });
               const status = String(e.status ?? "");
               if (status !== "ok" && e.error) setError(`${status}: ${e.error}`);
-              // канонический транскрипт — из журнала, а не из стрима
-              api.history(active).then((x) => {
-                if (!closed) {
+              // Канонический транскрипт — из журнала. Лента истории собирается
+              // тем же правилом, что и живая (хронология по записям), поэтому
+              // переход «стрим → история» больше не переставляет блоки.
+              api
+                .history(active)
+                .then((x) => {
+                  if (closed) return;
                   setMsgs(x.messages);
-                  setLiveTools({});
-                }
-              });
+                  setLive([]);
+                })
+                .catch((err) => setError(String(err instanceof Error ? err.message : err)));
               break;
             }
           }
@@ -949,12 +989,14 @@ export default function App() {
       closed = true;
       stop?.();
     };
-  }, [active]);
+    // `showRecall` в зависимостях: включение галочки перезапрашивает историю,
+    // иначе справка памяти появилась бы только у следующих ходов.
+  }, [active, showRecall]);
 
   useEffect(() => {
     const el = feedRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [msgs, stream.content, stream.reasoning]);
+  }, [msgs, live]);
 
   // Расклад окна: считает ядро по проекции, обновляем на смену сессии и после
   // каждого хода — в ходе он устаревает.
@@ -994,146 +1036,11 @@ export default function App() {
     return () => clearTimeout(t);
   }, [query]);
 
-  /** Тулы из журнала: вызов + его результат сводятся в один ToolRun. */
-  const tools = useMemo<ToolRun[]>(() => {
-    // Без выбранной сессии тулов нет: иначе при «новой сессии» док показывал бы
-    // вызовы предыдущей, пока её история ещё лежит в состоянии.
-    if (!active) return [];
-    const out: ToolRun[] = [];
-    const byId = new Map<string, ToolRun>();
-    let lastAssistant: ToolRun[] = [];
-    for (const m of msgs) {
-      if (m.role === "assistant") {
-        lastAssistant = [];
-        for (const c of m.tool_calls ?? []) {
-          const t: ToolRun = {
-            callId: c.id,
-            name: c.function.name,
-            args: c.function.arguments,
-            state: "running",
-            preview: "",
-          };
-          out.push(t);
-          byId.set(c.id, t);
-          lastAssistant.push(t);
-        }
-      }
-      if (m.role === "tool" && m.tool_call_id) {
-        const t = byId.get(m.tool_call_id);
-        const exit = m.exit ?? 0;
-        if (t) {
-          t.state = exit === 0 ? "ok" : "error";
-          t.exit = exit;
-          t.preview = m.content ?? "";
-          t.ms = m.ms;
-          t.parts = m.parts;
-          t.ts = m.ts;
-          if (m.name) t.name = m.name;
-        } else {
-          const orphan: ToolRun = {
-            callId: m.tool_call_id,
-            name: m.name ?? "tool",
-            args: "",
-            state: exit === 0 ? "ok" : "error",
-            exit,
-            preview: m.content ?? "",
-            ms: m.ms,
-            parts: m.parts,
-            ts: m.ts,
-          };
-          out.push(orphan);
-          lastAssistant.push(orphan);
-        }
-      }
-    }
-    for (const t of Object.values(liveTools)) {
-      const idx = out.findIndex((x) => x.callId === t.callId);
-      if (idx >= 0) out[idx] = t;
-      else out.push(t);
-    }
-    return out;
-  }, [active, msgs, liveTools]);
+  /** Тулы журнала, перекрытые живыми: правила — в `lenta.ts`, здесь только мемо. */
+  const tools = useMemo<ToolRun[]>(() => collectTools(msgs, live, Boolean(active)), [active, msgs, live]);
 
-  /** Раскладка ленты: сообщения человека отдельно, промежуточные шаги — пачкой. */
-  const blocks = useMemo(() => {
-    type Block =
-      | { kind: "user"; m: TranscriptMessage }
-      | { kind: "answer"; m: TranscriptMessage; tools: ToolRun[] }
-      | { kind: "steps"; steps: TranscriptMessage[]; tools: Map<number, ToolRun[]> };
-    const bySeq = new Map<number, ToolRun[]>();
-    const byCall = new Map<string, ToolRun>();
-    for (const t of tools) byCall.set(t.callId, t);
-    for (const m of msgs) {
-      if (m.role === "assistant") {
-        const list = (m.tool_calls ?? [])
-          .map((c: ToolCall) => byCall.get(c.id))
-          .filter((t): t is ToolRun => Boolean(t));
-        bySeq.set(m.seq, list);
-      }
-    }
-
-    const out: Block[] = [];
-    let run: TranscriptMessage[] = [];
-    const flush = () => {
-      if (run.length === 0) return;
-      // Финальный ответ: последний assistant с текстом и без вызовов тулов.
-      let answerIdx = -1;
-      for (let i = run.length - 1; i >= 0; i--) {
-        const m = run[i];
-        if (m.role === "assistant" && m.content && !m.tool_calls?.length) {
-          answerIdx = i;
-          break;
-        }
-      }
-      const answer = answerIdx >= 0 ? run[answerIdx] : undefined;
-      const steps = answerIdx >= 0 ? run.slice(0, answerIdx) : run;
-      // Рассуждение финального шага хронологически идёт ДО его текста, поэтому
-      // оно уезжает в группу промежуточных шагов (в её конец), а не висит под
-      // ответом. Если группы нет (ход из одного сообщения) — reasoning остаётся
-      // при ответе, но всё равно выводится перед текстом.
-      const answerReasoning =
-        answer && steps.length > 0 && answer.reasoning
-          ? [{ ...answer, content: null } as TranscriptMessage]
-          : [];
-      const grouped = [...steps, ...answerReasoning];
-      if (grouped.length > 0) {
-        out.push({
-          kind: "steps",
-          steps: grouped,
-          tools: new Map(steps.map((m) => [m.seq, bySeq.get(m.seq) ?? []])),
-        });
-      }
-      if (answer) {
-        out.push({
-          kind: "answer",
-          m: answerReasoning.length > 0 ? { ...answer, reasoning: undefined } : answer,
-          tools: bySeq.get(answer.seq) ?? [],
-        });
-      }
-      run = [];
-    };
-    for (const m of msgs) {
-      if (m.role === "user") {
-        // Вставка в ход от подагента (`report`) — часть работы, а не реплика
-        // человека: уезжает в текущую пачку шагов. Сообщение самого человека и
-        // его же steer (`via: "steer"`) — остаются репликами.
-        const fromAgent = m.via === "report" || m.via === "ask";
-        if (fromAgent) {
-          run.push(m);
-          continue;
-        }
-        flush();
-        out.push({ kind: "user", m });
-      } else if (m.role === "assistant") {
-        // Результаты тулов в ленту отдельными шагами не идут: они уже влиты
-        // в свой ToolRun (вызов + результат одним блоком). Иначе текст `fetch`
-        // рендерился как markdown и тащил в чат все картинки со страницы.
-        run.push(m);
-      }
-    }
-    flush();
-    return out;
-  }, [msgs, tools]);
+  /** Раскладка ленты (что видно, что свёрнуто) — тоже `lenta.ts`. */
+  const blocks = useMemo(() => buildBlocks(msgs, tools), [msgs, tools]);
 
   const turns = msgs.filter((m) => m.role !== "tool").length;
   const current = sessions.find((s) => s.id === active);
@@ -1167,7 +1074,7 @@ export default function App() {
       setDraft("");
       setPending([]);
       setRunning(true);
-      const h = await api.history(id);
+      const h = await api.history(id, showRecall);
       setMsgs(h.messages);
       loadSessions();
     } catch (e) {
@@ -1351,7 +1258,12 @@ export default function App() {
         </button>
 
         <div className="rail__foot">
-          <ThemeBar theme={theme} setTheme={setTheme} />
+          <SettingsBar
+            theme={theme}
+            setTheme={setTheme}
+            settings={settings}
+            setSettings={setSettings}
+          />
         </div>
       </nav>
 
@@ -1425,33 +1337,16 @@ export default function App() {
           {active &&
             blocks.map((b, i) =>
               b.kind === "user" ? (
-                <UserTurn key={`u${b.m.seq}`} m={b.m} session={active} />
-              ) : b.kind === "answer" ? (
-                <article className="msg msg--assistant" key={`a${b.m.seq}`}>
-                  <header className="msg__head">
-                    <span className="who">snens</span>
-                    <time>{time(b.m.ts)}</time>
-                  </header>
-                  <div className="msg__main">
-                    {b.m.reasoning && <Reasoning text={b.m.reasoning} />}
-                    <Markdown text={b.m.content ?? ""} />
-                    {b.tools.map((t) => (
-                      <ToolBlock key={t.callId} t={t} session={active} />
-                    ))}
-                  </div>
-                </article>
+                <UserTurn key={`u${i}`} m={b.m} session={active} />
+              ) : b.kind === "say" ? (
+                <Say key={`s${i}`} m={b.m} />
+              ) : b.kind === "recall" ? (
+                <Recall key={`r${i}`} m={b.m} />
               ) : (
-                <Steps key={`s${i}`} steps={b.steps} toolsByStep={b.tools} session={active} />
+                <Fold key={`f${i}`} parts={b.parts} session={active} />
               ),
             )}
-          {active && (
-            <Live
-              content={stream.content}
-              reasoning={stream.reasoning}
-              tools={Object.values(liveTools)}
-              session={active}
-            />
-          )}
+          {active && <Live items={live} session={active} />}
           {approval && (
             <article className="msg msg--approval">
               <header className="msg__head">
@@ -1532,8 +1427,16 @@ export default function App() {
                 e.target.value = "";
               }}
             />
+            {/* spellCheck выключен осознанно: браузер проверяет поле по языку
+                страницы, а мы пишем смесью русского и английского — половина
+                слов светилась как опечатка. Тот же эффект у 
+                autoCorrect/autoCapitalize на мобильных. */}
             <textarea
               value={draft}
+              spellCheck={false}
+              autoCorrect="off"
+              autoCapitalize="off"
+              lang="ru"
               placeholder="печатай… enter — отправить, shift+enter — перенос, файлы — кнопкой + или drag&drop"
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => {

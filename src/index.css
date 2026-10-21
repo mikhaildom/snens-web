@@ -865,3 +865,10 @@ pre.code .dim {
     transition: none !important;
   }
 }
+
+.rail__more {
+  text-align: left;
+  color: var(--ink-2);
+  font-size: var(--fs-xs);
+  padding: 0 2px;
+}

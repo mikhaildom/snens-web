@@ -224,8 +224,11 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState("");
   const [railOpen, setRailOpen] = useState(false);
-  const [dockOpen, setDockOpen] = useState(false);
+  const [dockOpen, setDockOpen] = useState(() =>
+    new URLSearchParams(location.search).has("dock"),
+  );
   const [dockTab, setDockTab] = useState<DockTab>("tools");
+  const [showAll, setShowAll] = useState(false);
   const feedRef = useRef<HTMLDivElement>(null);
 
   const rail = useResize("snens-rail-w", 224, 176, 380, 1);
@@ -254,7 +257,7 @@ export default function App() {
       const [list, m] = await Promise.all([loadSessions(), api.model().catch(() => null)]);
       if (!alive) return;
       if (m) setModel(m.model);
-      setActive((prev) => prev ?? list[0]?.id ?? null);
+      setActive((prev) => prev ?? new URLSearchParams(location.search).get("session") ?? list[0]?.id ?? null);
       setLoading(false);
     })();
     return () => {
@@ -428,6 +431,8 @@ export default function App() {
 
   const turns = msgs.filter((m) => m.role !== "tool").length;
   const current = sessions.find((s) => s.id === active);
+  const visible = showAll ? sessions : sessions.filter((s) => s.surface !== "legacy");
+  const legacyCount = sessions.length - visible.length;
 
   async function send() {
     const text = draft.trim();
@@ -487,14 +492,14 @@ export default function App() {
         </div>
 
         <div className="rail__section">
-          <span>sessions {sessions.length}</span>
+          <span>sessions {visible.length}</span>
           <button className="ghost" title="new session" onClick={newSession}>
             +
           </button>
         </div>
 
         <ul className="rail__list">
-          {sessions.map((s) => (
+          {visible.map((s) => (
             <li key={s.id}>
               <button
                 className="rail__item"
@@ -514,6 +519,16 @@ export default function App() {
         </ul>
 
         <div className="rail__foot">
+          {legacyCount > 0 && !showAll && (
+            <button className="ghost rail__more" onClick={() => setShowAll(true)}>
+              ещё {legacyCount} legacy-сессий
+            </button>
+          )}
+          {showAll && (
+            <button className="ghost rail__more" onClick={() => setShowAll(false)}>
+              скрыть legacy
+            </button>
+          )}
           <ThemeBar theme={theme} setTheme={setTheme} />
           <button className="solid" onClick={newSession}>
             new session

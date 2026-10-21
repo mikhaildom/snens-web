@@ -10,6 +10,7 @@
 ```sh
 npm i
 npm run dev      # http://100.73.69.107:5174 (tailscale, наружу не торчит)
+SNENS_WEB_PORT=5175 npm run dev   # свой порт: 5174 — рабочий порт человека
 npm run build    # tsc -b && vite build
 npm test         # правила ленты (src/lenta.test.ts)
 npm run lint     # oxlint

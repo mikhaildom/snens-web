@@ -634,18 +634,137 @@ textarea:focus-visible,
 
 /* ── вложения-картинки ─────────────────────────────────── */
 
+/* Картинки одного вызова — одной строкой; не влезло — свайп по горизонтали.
+   Пропорции держит object-fit: contain, ничего не растягиваем. */
 .shots {
   display: flex;
-  flex-wrap: wrap;
   gap: calc(var(--step) * 0.5);
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 2px;
+  scrollbar-width: thin;
+}
+
+.shot {
+  flex: 0 0 auto;
+  padding: 0;
+  border: 1px solid var(--hair);
+  background: var(--paper-3);
+  line-height: 0;
+  max-width: 100%;
+}
+
+.shot:hover {
+  border-color: var(--accent);
+  background: var(--paper-3);
 }
 
 .shots img {
-  max-width: min(100%, 320px);
-  max-height: 320px;
-  border: 1px solid var(--hair);
-  background: var(--paper-3);
   display: block;
+  max-width: min(100%, 240px);
+  max-height: 160px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}
+
+/* ── лайтбокс: картинка на весь экран ─────────────────── */
+
+.lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: color-mix(in srgb, var(--paper) 92%, black);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 16px 16px;
+}
+
+.lightbox__img {
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 80px);
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border: var(--bar) solid var(--line);
+  background: var(--paper-2);
+}
+
+.lightbox__bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--step);
+  padding: 4px var(--step);
+  background: var(--paper-2);
+  border-bottom: var(--bar) solid var(--line);
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.lightbox__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.lightbox__dim {
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+.lightbox__file {
+  margin-left: auto;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.lightbox__close {
+  border: 0;
+  background: transparent;
+  font-size: var(--fs-lg);
+  line-height: 1;
+  padding: 0 4px;
+}
+
+.lightbox__nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  border: var(--bar) solid var(--line);
+  background: var(--paper-2);
+  font-size: var(--fs-lg);
+  padding: 4px 8px;
+}
+
+.lightbox__nav--prev {
+  left: 12px;
+}
+
+.lightbox__nav--next {
+  right: 12px;
+}
+
+/* Пути, которые смотрел view: вместо argv и служебного вывода. */
+.tool__paths {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--fs-xs);
+  color: var(--ink-2);
+}
+
+.tool__paths li {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ── reasoning, свёрнутый по умолчанию ─────────────────── */
@@ -1162,7 +1281,7 @@ pre.code .dim {
 }
 
 .voice {
-  margin: 0;
+  margin: calc(var(--step) * 0.5) 0 0;
   display: flex;
   flex-direction: column;
   gap: 2px;

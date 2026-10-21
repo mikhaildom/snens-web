@@ -11,6 +11,8 @@ export interface SessionInfo {
   run_id: string | null;
   /** Заголовок: сгенерированный ядром или первые слова первого сообщения. */
   title?: string;
+  /** Время последней активности (unix, сек) — mtime лога сессии. */
+  updated_at?: number;
 }
 
 export interface Part {
@@ -61,6 +63,23 @@ export interface History {
   messages: TranscriptMessage[];
 }
 
+/**
+ * UUID для `command_id`. `crypto.randomUUID` есть только в secure context
+ * (https или localhost) — по адресу вида http://100.73.69.107:5174 его нет, и
+ * создание сессии падало с "crypto.randomUUID is not a function".
+ */
+export function uuid(): string {
+  const c = globalThis.crypto;
+  if (typeof c?.randomUUID === "function") return c.randomUUID();
+  const bytes = new Uint8Array(16);
+  if (typeof c?.getRandomValues === "function") c.getRandomValues(bytes);
+  else for (let i = 0; i < 16; i++) bytes[i] = Math.floor(Math.random() * 256);
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
 async function j<T>(path: string, init?: RequestInit): Promise<T> {
   const r = await fetch(`/api${path}`, {
     ...init,
@@ -85,7 +104,7 @@ export const api = {
   create: (surface = "web") =>
     j<SessionInfo>("/v1/sessions", {
       method: "POST",
-      body: JSON.stringify({ command_id: crypto.randomUUID(), surface }),
+      body: JSON.stringify({ command_id: uuid(), surface }),
     }),
 
   history: (id: string) => j<History>(`/v1/sessions/${id}/history`),
@@ -93,13 +112,13 @@ export const api = {
   send: (id: string, text: string) =>
     j<unknown>(`/v1/sessions/${id}/messages`, {
       method: "POST",
-      body: JSON.stringify({ command_id: crypto.randomUUID(), text }),
+      body: JSON.stringify({ command_id: uuid(), text }),
     }),
 
   stop: (id: string, runId: string) =>
     j<unknown>(`/v1/sessions/${id}/stop`, {
       method: "POST",
-      body: JSON.stringify({ command_id: crypto.randomUUID(), run_id: runId }),
+      body: JSON.stringify({ command_id: uuid(), run_id: runId }),
     }),
 
   model: () => j<{ model: string }>("/v1/model"),

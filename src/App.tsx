@@ -38,6 +38,28 @@ const time = (ts: number) =>
 
 const dur = (ms?: number) => (ms == null ? "" : ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${ms}ms`);
 
+/** «только что / 12 мин / 3 ч / вчера / 21 окт». */
+function relTime(ts?: number): string {
+  if (!ts) return "";
+  const now = Date.now() / 1000;
+  const d = Math.max(0, now - ts);
+  if (d < 60) return "только что";
+  if (d < 3600) return `${Math.floor(d / 60)} мин`;
+  const date = new Date(ts * 1000);
+  const hm = date.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+  const today = new Date();
+  if (date.toDateString() === today.toDateString()) return `${Math.floor(d / 3600)} ч`;
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+  if (date.toDateString() === yesterday.toDateString()) return `вчера ${hm}`;
+  const sameYear = date.getFullYear() === today.getFullYear();
+  return date.toLocaleDateString("ru-RU", {
+    day: "numeric",
+    month: "short",
+    ...(sameYear ? {} : { year: "numeric" }),
+  });
+}
+
 /** «1 шаг / 2 шага / 5 шагов». */
 function stepsWord(n: number): string {
   const mod10 = n % 10;
@@ -59,40 +81,146 @@ function shortArgs(raw: string): string {
   }
 }
 
+/**
+ * Пути, которые смотрел `view`. Тул получает их массивом в `args`, и в ленте
+ * нужны именно пути: argv вида `{"args": ["/a.png", "/b.png"]}` и служебная
+ * строка «→ вложение» модели ничего не говорят.
+ */
+function viewedPaths(t: ToolRun): string[] {
+  if (t.name !== "view") return [];
+  try {
+    const v = JSON.parse(t.args);
+    const raw = Array.isArray(v) ? v : (v.args ?? v.paths ?? []);
+    return (Array.isArray(raw) ? raw : [raw]).map(String).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+const MEDIA_TOOLS = new Set(["view"]);
+
 const fileUrl = (session: string, path: string) =>
   `/api/v1/sessions/${session}/file?path=${encodeURIComponent(path)}`;
 
 /* ── лента ──────────────────────────────────────────────── */
 
+/** Полноэкранный просмотр картинки: без растягивания, с листанием. */
+function Lightbox({
+  session,
+  parts,
+  index,
+  onIndex,
+  onClose,
+}: {
+  session: string;
+  parts: Part[];
+  index: number;
+  onIndex: (i: number) => void;
+  onClose: () => void;
+}) {
+  const part = parts[index];
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+      if (e.key === "ArrowRight") onIndex((index + 1) % parts.length);
+      if (e.key === "ArrowLeft") onIndex((index - 1 + parts.length) % parts.length);
+    };
+    document.addEventListener("keydown", onKey);
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = "";
+    };
+  }, [index, onClose, onIndex, parts.length]);
+  if (!part) return null;
+  return (
+    <div className="lightbox" role="dialog" aria-modal="true" onClick={onClose}>
+      <div className="lightbox__bar" onClick={(e) => e.stopPropagation()}>
+        <span className="lightbox__name">{part.path.split("/").pop()}</span>
+        <span className="lightbox__dim">
+          {part.width && part.height ? `${part.width}×${part.height}` : ""}
+          {parts.length > 1 ? ` · ${index + 1}/${parts.length}` : ""}
+        </span>
+        <a className="lightbox__file" href={fileUrl(session, part.path)} target="_blank" rel="noreferrer">
+          файл
+        </a>
+        <button className="lightbox__close" onClick={onClose} aria-label="закрыть">
+          ×
+        </button>
+      </div>
+      <img
+        className="lightbox__img"
+        src={fileUrl(session, part.path)}
+        alt={part.path.split("/").pop() ?? "image"}
+        onClick={(e) => e.stopPropagation()}
+      />
+      {parts.length > 1 && (
+        <>
+          <button
+            className="lightbox__nav lightbox__nav--prev"
+            onClick={(e) => {
+              e.stopPropagation();
+              onIndex((index - 1 + parts.length) % parts.length);
+            }}
+            aria-label="предыдущая"
+          >
+            ‹
+          </button>
+          <button
+            className="lightbox__nav lightbox__nav--next"
+            onClick={(e) => {
+              e.stopPropagation();
+              onIndex((index + 1) % parts.length);
+            }}
+            aria-label="следующая"
+          >
+            ›
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
 /**
  * Вложения, которые можно увидеть и услышать. Картинки — то, что смотрел агент
  * (`view`) или что приложил человек; голосовые — с проигрыванием, потому что
  * распознавание живёт в ядре, а исходник нужно уметь переслушать.
+ *
+ * Картинки одного вызова идут одной строкой (при нехватке места — свайпом),
+ * открываются во весь экран: пропорции сохраняются, ничего не растягивается.
  */
 function Attachments({ session, parts }: { session: string; parts?: Part[] }) {
   const visual = (parts ?? []).filter((p) => p.kind === "image" || p.kind === "video");
+  const images = visual.filter((p) => p.kind === "image");
   const audio = (parts ?? []).filter((p) => p.kind === "audio");
+  const [shot, setShot] = useState<number | null>(null);
   if (visual.length === 0 && audio.length === 0) return null;
   return (
-    <div className="shots">
-      {visual.map((p) =>
-        p.kind === "image" ? (
-          <a key={p.path} href={fileUrl(session, p.path)} target="_blank" rel="noreferrer">
-            <img
-              src={fileUrl(session, p.path)}
-              alt={p.path.split("/").pop() ?? "image"}
-              width={p.width || undefined}
-              height={p.height || undefined}
-              loading="lazy"
-              onError={(e) => {
-                (e.currentTarget as HTMLImageElement).closest("a")!.style.display = "none";
-              }}
-            />
-          </a>
-        ) : (
-          <video key={p.path} src={fileUrl(session, p.path)} controls preload="metadata" />
-        ),
-      )}
+    <>
+      <div className="shots">
+        {visual.map((p) =>
+          p.kind === "image" ? (
+            <button
+              key={p.path}
+              className="shot"
+              onClick={() => setShot(images.indexOf(p))}
+              title={`${p.path}${p.width ? ` · ${p.width}×${p.height}` : ""}`}
+            >
+              <img
+                src={fileUrl(session, p.path)}
+                alt={p.path.split("/").pop() ?? "image"}
+                loading="lazy"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).closest(".shot")!.remove();
+                }}
+              />
+            </button>
+          ) : (
+            <video key={p.path} src={fileUrl(session, p.path)} controls preload="metadata" />
+          ),
+        )}
+      </div>
       {audio.map((p) => (
         <figure className="voice" key={p.path}>
           <audio src={fileUrl(session, p.path)} controls preload="metadata" />
@@ -101,25 +229,40 @@ function Attachments({ session, parts }: { session: string; parts?: Part[] }) {
           </figcaption>
         </figure>
       ))}
-    </div>
+      {shot != null && (
+        <Lightbox
+          session={session}
+          parts={images}
+          index={shot}
+          onIndex={setShot}
+          onClose={() => setShot(null)}
+        />
+      )}
+    </>
   );
 }
 
 const MARK: Record<ToolRun["state"], string> = { ok: "✓", error: "×", running: "●" };
 
 function ToolBlock({ t, session, defaultOpen }: { t: ToolRun; session: string; defaultOpen?: boolean }) {
-  // Тул с картинками раскрыт сразу: смысл вложения — увидеть, что смотрел агент,
+  // Тул с медиа раскрыт сразу: смысл вложения — увидеть, что смотрел агент,
   // а не разворачивать блок руками.
   const hasMedia = Boolean(
     t.parts?.some((p) => p.kind === "image" || p.kind === "video" || p.kind === "audio"),
   );
-  const [open, setOpen] = useState(!!defaultOpen || hasMedia);
+  const paths = viewedPaths(t);
+  // У медиа-тулов argv и служебный вывод не показываем: они дублируют то, что
+  // и так видно — картинки и их пути.
+  const quiet = MEDIA_TOOLS.has(t.name) && (paths.length > 0 || hasMedia);
+  const [open, setOpen] = useState(!!defaultOpen || hasMedia || quiet);
   return (
     <div className="tool" data-state={t.state}>
       <button className="tool__head" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
         <span className="tool__mark">{MARK[t.state]}</span>
         <span className="tool__name">{t.name}</span>
-        <span className="tool__arg">{shortArgs(t.args)}</span>
+        <span className="tool__arg">
+          {paths.length > 0 ? paths.map((p) => p.split("/").pop()).join(", ") : shortArgs(t.args)}
+        </span>
         <span className="tool__meta">
           {t.exit != null && t.exit !== 0 ? `exit ${t.exit}` : ""}
           {t.ms != null && <span className="tool__ms">{dur(t.ms)}</span>}
@@ -128,8 +271,22 @@ function ToolBlock({ t, session, defaultOpen }: { t: ToolRun; session: string; d
       </button>
       {open && (
         <div className="tool__body">
-          {t.args && <pre className="code">{t.args}</pre>}
-          {t.preview && <pre className="code tool__out">{t.preview}</pre>}
+          {quiet ? (
+            paths.length > 0 && (
+              <ul className="tool__paths">
+                {paths.map((p) => (
+                  <li key={p} title={p}>
+                    {p}
+                  </li>
+                ))}
+              </ul>
+            )
+          ) : (
+            <>
+              {t.args && <pre className="code">{t.args}</pre>}
+              {t.preview && <pre className="code tool__out">{t.preview}</pre>}
+            </>
+          )}
           <Attachments session={session} parts={t.parts} />
         </div>
       )}
@@ -273,15 +430,31 @@ function ToolRow({ t, session }: { t: ToolRun; session: string }) {
       <button className="win__bar" onClick={() => setOpen((v) => !v)}>
         <span className="win__kind">{MARK[t.state]}</span>
         <span>{t.name}</span>
-        <span className="win__arg">{shortArgs(t.args)}</span>
+        <span className="win__arg">
+          {viewedPaths(t).length > 0
+            ? viewedPaths(t).map((p) => p.split("/").pop()).join(", ")
+            : shortArgs(t.args)}
+        </span>
         <span className="win__state" data-state={t.state}>
           {t.ms != null ? dur(t.ms) : t.state}
         </span>
       </button>
       {open && (
         <div className="win__body">
-          {t.args && <pre>{t.args}</pre>}
-          {t.preview && <pre>{t.preview}</pre>}
+          {MEDIA_TOOLS.has(t.name) && viewedPaths(t).length > 0 ? (
+            <ul className="tool__paths">
+              {viewedPaths(t).map((p) => (
+                <li key={p} title={p}>
+                  {p}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <>
+              {t.args && <pre>{t.args}</pre>}
+              {t.preview && <pre>{t.preview}</pre>}
+            </>
+          )}
           <Attachments session={session} parts={t.parts} />
         </div>
       )}
@@ -365,7 +538,11 @@ function ThemeBar({ theme, setTheme }: { theme: Theme; setTheme: (t: Theme) => v
 export default function App() {
   const [theme, setTheme] = useState<Theme>(initialTheme);
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
-  const [active, setActive] = useState<string | null>(null);
+  // Сессия живёт в URL: `?session=<id>`. Это даёт рабочую навигацию браузера
+  // вперёд/назад и ссылку на конкретную сессию.
+  const [active, setActive] = useState<string | null>(
+    () => new URLSearchParams(location.search).get("session"),
+  );
   const [msgs, setMsgs] = useState<TranscriptMessage[]>([]);
   const [stream, setStream] = useState({ content: "", reasoning: "" });
   const [liveTools, setLiveTools] = useState<Record<string, ToolRun>>({});
@@ -388,12 +565,43 @@ export default function App() {
     applyTheme(theme);
   }, [theme]);
 
+  /** Выбор сессии: пушим запись в историю, чтобы работали вперёд/назад. */
+  const select = useCallback((id: string | null) => {
+    setActive(id);
+    setRailOpen(false);
+    const url = new URL(location.href);
+    if (id) url.searchParams.set("session", id);
+    else url.searchParams.delete("session");
+    // `pushState` вместо роутера: страница одна, состояние целиком в URL.
+    if (decodeURIComponent(location.href) !== url.toString()) {
+      history.pushState({ session: id }, "", url);
+    }
+  }, []);
+
+  // Кнопки браузера: состояние забираем из адреса, а не из своего.
+  useEffect(() => {
+    const onPop = () => setActive(new URLSearchParams(location.search).get("session"));
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
+  // Первая загрузка без `?session=`: подставляем свежую сессию в адрес через
+  // replaceState — это не отдельная запись истории, назад с неё не листают.
+  useEffect(() => {
+    if (!active) return;
+    const url = new URL(location.href);
+    if (url.searchParams.get("session") === active) return;
+    url.searchParams.set("session", active);
+    history.replaceState({ session: active }, "", url);
+  }, [active]);
+
   const loadSessions = useCallback(async () => {
     try {
       const { sessions } = await api.sessions();
-      const sorted = sessions.slice().sort((a, b) => (a.id < b.id ? 1 : -1));
-      setSessions(sorted);
-      return sorted;
+      // Порядок приходит с ядра (по mtime лога) — поверхность и форма id на него
+      // не влияют. Клиентская сортировка только дублировала бы правила.
+      setSessions(sessions);
+      return sessions;
     } catch (e) {
       setError(String(e instanceof Error ? e.message : e));
       return [];
@@ -406,7 +614,7 @@ export default function App() {
       const [list, m] = await Promise.all([loadSessions(), api.model().catch(() => null)]);
       if (!alive) return;
       if (m) setModel(m.model);
-      setActive((prev) => prev ?? new URLSearchParams(location.search).get("session") ?? list[0]?.id ?? null);
+      setActive((prev) => prev ?? list[0]?.id ?? null);
       setLoading(false);
     })();
     return () => {
@@ -660,6 +868,12 @@ export default function App() {
   const turns = msgs.filter((m) => m.role !== "tool").length;
   const current = sessions.find((s) => s.id === active);
 
+  // Заголовок вкладки — заголовок сессии: в списке вкладок браузера видно, где
+  // что, без переключения.
+  useEffect(() => {
+    document.title = current?.title ? `${current.title} — snens` : "snens";
+  }, [current?.title]);
+
   async function send() {
     const text = draft.trim();
     if (!text) return;
@@ -669,7 +883,7 @@ export default function App() {
       if (!id) {
         const created = await api.create("web");
         id = created.id;
-        setActive(id);
+        select(id);
         setSessions((prev) => [created, ...prev]);
       }
       await api.send(id, text);
@@ -687,8 +901,7 @@ export default function App() {
     try {
       const created = await api.create("web");
       setSessions((prev) => [created, ...prev]);
-      setActive(created.id);
-      setRailOpen(false);
+      select(created.id);
     } catch (e) {
       setError(String(e instanceof Error ? e.message : e));
     }
@@ -731,14 +944,12 @@ export default function App() {
               <button
                 className="rail__item"
                 aria-current={active === s.id}
-                onClick={() => {
-                  setActive(s.id);
-                  setRailOpen(false);
-                }}
+                onClick={() => select(s.id)}
               >
-                {s.title || s.id}
+                {s.title || "новая сессия"}
                 <small>
-                  {s.surface} · {s.state} · {s.id}
+                  {relTime(s.updated_at)} · {s.surface}
+                  {s.state !== "idle" ? ` · ${s.state}` : ""}
                 </small>
               </button>
             </li>
@@ -760,7 +971,7 @@ export default function App() {
           <button className="ghost burger" onClick={() => setRailOpen(true)} aria-label="sessions">
             ≡
           </button>
-          <span className="topbar__title">{current?.title || current?.id || "новая сессия"}</span>
+          <span className="topbar__title">{current?.title || "новая сессия"}</span>
           <div className="topbar__meta">
             <button className="ghost dock-toggle" onClick={() => setDockOpen(true)} aria-label="док">
               док

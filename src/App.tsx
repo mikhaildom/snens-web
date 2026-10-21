@@ -12,6 +12,7 @@ import {
   type Win,
 } from "./mock";
 import { applyTheme, initialTheme, type Theme } from "./theme";
+import { useResize } from "./useResize";
 
 const ROLE_LABEL: Record<Role, string> = {
   user: "you",
@@ -19,6 +20,8 @@ const ROLE_LABEL: Record<Role, string> = {
   tool: "tool",
   system: "system",
 };
+
+type DockTab = "windows" | "tools";
 
 function Code({ code }: { code: string }) {
   const rows = code.split("\n").map((line, i) => {
@@ -113,11 +116,11 @@ function ToolRunRow({ t }: { t: ToolRun }) {
   return (
     <div className="win">
       <button className="win__bar" onClick={() => setOpen((v) => !v)}>
-        <span className="win__kind">{t.state === "ok" ? "✓" : t.state === "error" ? "×" : "●"}</span>
-        <span>{t.tool}</span>
-        <span className="win__kind" style={{ textTransform: "none", letterSpacing: 0 }}>
-          {t.arg}
+        <span className="win__kind">
+          {t.state === "ok" ? "✓" : t.state === "error" ? "×" : "●"}
         </span>
+        <span>{t.tool}</span>
+        <span className="win__arg">{t.arg}</span>
         <span className="win__state" data-state={t.state}>
           {t.ms}
         </span>
@@ -131,24 +134,40 @@ function ToolRunRow({ t }: { t: ToolRun }) {
   );
 }
 
-function Dock() {
+function Dock({
+  tab,
+  setTab,
+  onClose,
+}: {
+  tab: DockTab;
+  setTab: (t: DockTab) => void;
+  onClose?: () => void;
+}) {
   return (
-    <aside className="dock" aria-label="dock">
-      <div className="dock__head">
-        <span>окна</span>
-        <span>{windows.length}</span>
+    <>
+      <div className="dock__tabs" role="tablist">
+        <button
+          role="tab"
+          aria-selected={tab === "windows"}
+          onClick={() => setTab("windows")}
+        >
+          окна <b>{windows.length}</b>
+        </button>
+        <button role="tab" aria-selected={tab === "tools"} onClick={() => setTab("tools")}>
+          тулы <b>{toolRuns.length}</b>
+        </button>
+        {onClose && (
+          <button className="dock__close" onClick={onClose} aria-label="закрыть док">
+            ×
+          </button>
+        )}
       </div>
-      {windows.map((w) => (
-        <Window key={w.id} w={w} />
-      ))}
-      <div className="dock__head">
-        <span>тулы</span>
-        <span>{toolRuns.length}</span>
+      <div className="dock__body" role="tabpanel">
+        {tab === "windows"
+          ? windows.map((w) => <Window key={w.id} w={w} />)
+          : toolRuns.map((t) => <ToolRunRow key={t.id} t={t} />)}
       </div>
-      {toolRuns.map((t) => (
-        <ToolRunRow key={t.id} t={t} />
-      ))}
-    </aside>
+    </>
   );
 }
 
@@ -158,7 +177,12 @@ export default function App() {
   const [active, setActive] = useState("s1");
   const [draft, setDraft] = useState("");
   const [railOpen, setRailOpen] = useState(false);
+  const [dockTab, setDockTab] = useState<DockTab>("windows");
+  const [dockOpen, setDockOpen] = useState(false);
   const feedRef = useRef<HTMLDivElement>(null);
+
+  const rail = useResize("snens-rail-w", 224, 176, 380, 1);
+  const dock = useResize("snens-dock-w", 320, 240, 620, -1);
 
   useEffect(() => {
     applyTheme(theme);
@@ -187,7 +211,10 @@ export default function App() {
   }
 
   return (
-    <div className="app">
+    <div
+      className="app"
+      style={{ "--rail-w": `${rail.size}px`, "--dock-w": `${dock.size}px` } as React.CSSProperties}
+    >
       <nav className="rail" data-open={railOpen} aria-label="sessions">
         <div className="rail__brand">
           <span className="rail__mark">snens</span>
@@ -228,6 +255,8 @@ export default function App() {
         </div>
       </nav>
 
+      <div className="grip grip--rail" title="тяни · двойной клик — сброс" {...rail.gripProps} />
+
       <main className="main">
         <header className="topbar">
           <button className="ghost burger" onClick={() => setRailOpen(true)} aria-label="sessions">
@@ -235,6 +264,13 @@ export default function App() {
           </button>
           <span className="topbar__title">web-клиент для snens</span>
           <div className="topbar__meta">
+            <button
+              className="ghost dock-toggle"
+              onClick={() => setDockOpen(true)}
+              aria-label="док"
+            >
+              ▤
+            </button>
             <span className="chip">
               <span className="dot" /> online
             </span>
@@ -285,7 +321,17 @@ export default function App() {
         </div>
       </main>
 
-      <Dock />
+      <div className="grip grip--dock" title="тяни · двойной клик — сброс" {...dock.gripProps} />
+
+      <aside className="dock" aria-label="dock">
+        <Dock tab={dockTab} setTab={setDockTab} />
+      </aside>
+
+      <aside className="dock dock--sheet" data-open={dockOpen} aria-label="dock">
+        {dockOpen && (
+          <Dock tab={dockTab} setTab={setDockTab} onClose={() => setDockOpen(false)} />
+        )}
+      </aside>
     </div>
   );
 }

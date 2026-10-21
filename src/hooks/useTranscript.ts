@@ -31,6 +31,8 @@ export function useTranscript({ active, showRecall, onError }: Options) {
   const [apr, setApr] = useState<{ sid: string; value: Approval | null }>({ sid: "", value: null });
   const [running, setRunning] = useState(false);
   const [runId, setRunId] = useState<string | null>(null);
+  /** Сколько шагов модели закончилось в этом ходе: по нему обновляется окно контекста. */
+  const [steps, setSteps] = useState(0);
 
   useEffect(() => {
     if (!active) return;
@@ -55,6 +57,11 @@ export function useTranscript({ active, showRecall, onError }: Options) {
               setRunning(true);
               setRunId(e.run_id ?? null);
               patch(() => ({ live: [] }));
+              break;
+            // Шаг завершён: расход посчитан, окно контекста устарело.
+            case "usage":
+              setSteps((n) => n + 1);
+              patch((s) => ({ live: applyEvent(s.live, e) }));
               break;
             case "assistant.delta":
             case "tool.started":
@@ -142,6 +149,7 @@ export function useTranscript({ active, showRecall, onError }: Options) {
     live: same ? snap.live : [],
     running,
     runId,
+    steps,
     approval,
     decide,
   };

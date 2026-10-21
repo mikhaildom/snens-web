@@ -49,8 +49,10 @@ export interface TranscriptMessage {
   /**
    * Роль записи. `recall` — служебная справка долгой памяти: ядро отдаёт её
    * только по запросу (`recall=1`), и клиент рисует её серой строкой.
+   * `review` — маркер саморевью: короткая служебная строка в журнале, граница
+   * зоны ответственности следующего ревью. В контекст модели не уезжает.
    */
-  role: "user" | "assistant" | "tool" | "recall";
+  role: "user" | "assistant" | "tool" | "recall" | "review";
   content: string | null;
   source?: string;
   reasoning?: string;

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, uuid, type SessionInfo } from "./api";
 import { buildBlocks, collectTools } from "./lenta";
 import { applyTheme, initialTheme, type Theme } from "./theme";
@@ -9,6 +9,7 @@ import { useSessions } from "./hooks/useSessions";
 import { useTranscript } from "./hooks/useTranscript";
 import { useContextWindow } from "./hooks/useContextWindow";
 import { useSearch } from "./hooks/useSearch";
+import { useFeedScroll } from "./hooks/useFeedScroll";
 import { Rail } from "./rail/Rail";
 import { Topbar } from "./rail/Topbar";
 import { Statusbar } from "./rail/Statusbar";
@@ -39,11 +40,10 @@ export default function App() {
   /** Сессия, у которой открыто подтверждение удаления. */
   const [removing, setRemoving] = useState<string | null>(null);
   const [query, setQuery] = useState("");
-  const feedRef = useRef<HTMLDivElement>(null);
 
   const { active, select } = useActiveSession();
   const { sessions, setSessions, reload } = useSessions(onError);
-  const { msgs, setMsgs, live, running, runId, approval, decide } = useTranscript({
+  const { msgs, setMsgs, live, running, runId, steps, approval, decide } = useTranscript({
     active,
     showRecall,
     onError,
@@ -57,7 +57,8 @@ export default function App() {
   const tools = useMemo(() => collectTools(msgs, live, Boolean(active)), [active, msgs, live]);
   /** Раскладка ленты (что видно, что свёрнуто) — тоже `lenta.ts`. */
   const blocks = useMemo(() => buildBlocks(msgs, tools), [msgs, tools]);
-  const ctx = useContextWindow(active, msgs.length, running);
+  const ctx = useContextWindow(active, msgs.length, running, steps);
+  const { feedRef, buttonRef: toBottomRef, toBottom } = useFeedScroll([msgs, live, active]);
 
   const turns = msgs.filter((m) => m.role !== "tool").length;
   const current = sessions.find((s) => s.id === active);
@@ -85,11 +86,6 @@ export default function App() {
       alive = false;
     };
   }, [reload]);
-
-  useEffect(() => {
-    const el = feedRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [msgs, live]);
 
   // Заголовок вкладки — заголовок сессии: в списке вкладок браузера видно, где
   // что, без переключения.
@@ -216,6 +212,15 @@ export default function App() {
               onDismissError={() => setError(null)}
             />
           )}
+          <button
+            ref={toBottomRef}
+            className="feed__bottom"
+            data-show="false"
+            onClick={toBottom}
+            aria-label="в конец ленты"
+          >
+            ↓
+          </button>
         </div>
 
         <Composer

@@ -3,6 +3,7 @@ import type { Approval } from "../hooks/useTranscript";
 import { Fold } from "./Fold";
 import { Live } from "./Live";
 import { Recall } from "./Recall";
+import { ReviewMark } from "./ReviewMark";
 import { Say, UserTurn } from "./turns";
 
 /** Тело ленты: блоки истории, живой стрим, ожидание одобрения и ошибка. */
@@ -32,6 +33,8 @@ export function Feed({
           <Say key={`s${i}`} m={b.m} />
         ) : b.kind === "recall" ? (
           <Recall key={`r${i}`} m={b.m} />
+        ) : b.kind === "review" ? (
+          <ReviewMark key={`v${i}`} m={b.m} />
         ) : (
           <Fold key={`f${i}`} parts={b.parts} session={session} />
         ),

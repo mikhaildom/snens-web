@@ -6,11 +6,20 @@ type Ctx = { breakdown: WindowBreakdown | null; limit: number };
 
 /**
  * Расклад окна контекста: считает ядро, обновляем на смену сессии и после
- * каждого хода — в ходе он устаревает.
+ * каждого шага — в ходе он устаревает.
+ *
+ * `steps` — счётчик завершённых шагов модели (события `usage` в стриме). Без
+ * него шкала стояла на цифрах прошлого хода до самого его конца: во время
+ * работы было видно неправду.
  *
  * Сброс живёт в `select`: синхронный setState в эффекте давал лишний рендер.
  */
-export function useContextWindow(active: string | null, turns: number, running: boolean) {
+export function useContextWindow(
+  active: string | null,
+  turns: number,
+  running: boolean,
+  steps: number,
+) {
   const [ctx, setCtx] = useState<Ctx>({ breakdown: null, limit: CTX_LIMIT });
 
   const reset = useCallback(() => setCtx({ breakdown: null, limit: CTX_LIMIT }), []);
@@ -29,7 +38,7 @@ export function useContextWindow(active: string | null, turns: number, running: 
     return () => {
       alive = false;
     };
-  }, [active, turns, running]);
+  }, [active, turns, running, steps]);
 
   return { ...ctx, reset };
 }

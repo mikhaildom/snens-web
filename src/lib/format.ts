@@ -11,13 +11,18 @@ export function stepsWord(n: number): string {
 
 /** Аргументы вызова одной строкой: разбираем JSON, но не падаем на не-JSON. */
 export function shortArgs(raw: string): string {
+  const oneLine = (s: string) => s.split("\n")[0].trim();
   try {
     const v = JSON.parse(raw);
-    const first = v.cmd ?? v.path ?? v.url ?? v.query ?? v.args?.[0] ?? v.text ?? Object.values(v)[0];
-    const s = Array.isArray(first) ? first.join(" ") : String(first ?? "");
+    // `command` — это `run`, `cmd` — старые логи. Без них объект целиком уезжал
+    // в строку и заголовок блока был простынёй JSON вместо команды.
+    const first =
+      v.command ?? v.cmd ?? v.path ?? v.url ?? v.query ?? v.args?.[0] ?? v.text ?? Object.values(v)[0];
+    const s = Array.isArray(first) ? first.join(" ") : oneLine(String(first ?? ""));
     return s.length > 80 ? `${s.slice(0, 80)}…` : s;
   } catch {
-    return raw.length > 80 ? `${raw.slice(0, 80)}…` : raw;
+    const s = oneLine(raw);
+    return s.length > 80 ? `${s.slice(0, 80)}…` : s;
   }
 }
 

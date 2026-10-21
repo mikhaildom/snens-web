@@ -10,7 +10,7 @@
  * Модуль нарочно без React: правила проверяются тестами (`npm test`), а не
  * скриншотами.
  */
-import type { Part, SurfaceEvent, ToolCall, TranscriptMessage } from "./api";
+import type { Part, SurfaceEvent, ToolCall, TranscriptMessage, Usage } from "./api";
 
 export interface ToolRun {
   callId: string;
@@ -29,7 +29,9 @@ export interface ToolRun {
 export type LiveItem =
   | { kind: "text"; seq: number; text: string }
   | { kind: "reasoning"; seq: number; text: string }
-  | { kind: "tool"; seq: number; tool: ToolRun };
+  | { kind: "tool"; seq: number; tool: ToolRun }
+  /** Расход шага: приходит от ядра отдельным событием того же шага. */
+  | { kind: "usage"; seq: number; usage: Usage };
 
 /**
  * Событие стрима → живая лента. Дельта приклеивается к последнему блоку, только
@@ -67,6 +69,16 @@ export function applyEvent(items: LiveItem[], e: SurfaceEvent): LiveItem[] {
         },
       ];
     }
+    case "usage": {
+      const usage: Usage = {
+        in_tok: Number(e.in_tok ?? 0),
+        cached_tok: Number(e.cached_tok ?? 0),
+        out_tok: Number(e.out_tok ?? 0),
+        reason_tok: Number(e.reason_tok ?? 0),
+        cost_micro: Number(e.cost_micro ?? 0),
+      };
+      return [...items, { kind: "usage", seq, usage }];
+    }
     case "tool.completed": {
       // Результат обновляет свой блок, но не двигает его: позиция зафиксирована
       // на `tool.started`.
@@ -82,7 +94,11 @@ export function applyEvent(items: LiveItem[], e: SurfaceEvent): LiveItem[] {
             state: exit === 0 ? "ok" : "error",
             exit,
             preview: String(e.preview ?? ""),
-            ms: it.tool.started ? Date.now() - it.tool.started : undefined,
+            // Вложения и время приходят в событии, как в журнале: иначе стрим
+            // показывал тул без картинки и без длительности, а после
+            // перечитывания истории они появлялись.
+            parts: Array.isArray(e.parts) ? (e.parts as Part[]) : it.tool.parts,
+            ms: e.ms != null ? Number(e.ms) : it.tool.started ? Date.now() - it.tool.started : undefined,
           },
         };
       });
@@ -91,6 +107,71 @@ export function applyEvent(items: LiveItem[], e: SurfaceEvent): LiveItem[] {
       return items;
   }
 }
+
+export interface LiveStep {
+  /** Рассуждения шага: в ленте свёрнуты, как и в истории. */
+  reasoning: string;
+  /** Текст шага: виден на виду. */
+  text: string;
+  tools: ToolRun[];
+  /** Расход шага, если ядро уже его прислало. */
+  usage?: Usage;
+}
+
+/**
+ * Живая лента → шаги модели. Один шаг — это одно рассуждение, один текст и
+ * тулы между ними; порядок внутри шага хронологический.
+ *
+ * Нужно для того же, ради чего `buildBlocks`: стрим и история обязаны
+ * рисоваться одинаково. Плоский список `LiveItem` давал другую ленту — шаги не
+ * группировались, reasoning не сворачивался, а «шаг» не имел ни заголовка, ни
+ * счётчиков. Расхождение стрима и истории человек и видел.
+ */
+export function liveSteps(items: LiveItem[]): LiveStep[] {
+  const steps: LiveStep[] = [];
+  let cur: LiveStep = { reasoning: "", text: "", tools: [] };
+  let started = false;
+  /**
+   * Шаг закрыт расходом. Ядро отдаёт `usage` сразу после ответа модели, а вызовы
+   * этого же ответа — уже после него. Поэтому расход закрывает шаг только для
+   * НОВОГО текста/рассуждения: тулы продолжают принадлежать этому шагу, как в
+   * журнале, где они лежат в той же записи `assistant`.
+   */
+  let sealed = false;
+  const close = () => {
+    if (started) steps.push(cur);
+    cur = { reasoning: "", text: "", tools: [] };
+    started = false;
+    sealed = false;
+  };
+  for (const it of items) {
+    if (it.kind === "reasoning") {
+      // Рассуждение открывает новый шаг, если в текущем уже есть текст или тулы:
+      // в истории оно тоже идёт перед текстом своего шага.
+      if (sealed || cur.text || cur.tools.length > 0) close();
+      cur.reasoning += it.text;
+      started = true;
+      continue;
+    }
+    if (it.kind === "text") {
+      if (sealed) close();
+      cur.text += it.text;
+      started = true;
+      continue;
+    }
+    if (it.kind === "usage") {
+      // Расход относится к завершённому ответу: шаг им закрыт.
+      cur.usage = it.usage;
+      sealed = true;
+      continue;
+    }
+    cur.tools.push(it.tool);
+    started = true;
+  }
+  close();
+  return steps;
+}
+
 
 /** Часть свёрнутой пачки: шаг без текста (рассуждение, отчёт подагента) или вызов. */
 export type FoldPart =
@@ -102,7 +183,9 @@ export type Block =
   | { kind: "say"; m: TranscriptMessage }
   | { kind: "fold"; parts: FoldPart[] }
   /** Справка долгой памяти перед ходом, который её получил (по галочке в настройках). */
-  | { kind: "recall"; m: TranscriptMessage };
+  | { kind: "recall"; m: TranscriptMessage }
+  /** Маркер саморевью: граница зоны ответственности следующего ревью. */
+  | { kind: "review"; m: TranscriptMessage };
 
 /**
  * Тулы из журнала: вызов и его результат — один ToolRun.
@@ -205,6 +288,14 @@ export function buildBlocks(msgs: TranscriptMessage[], tools: ToolRun[]): Block[
       out.push({ kind: "recall", m });
       continue;
     }
+    // Маркер саморевью — такой же разрыв хронологии, как справка памяти: он
+    // отмечает, где кончилась зона работы агента. Пачку рвём, чтобы метка не
+    // оказалась в чужой свёрнутой пачке.
+    if (m.role === "review") {
+      flushFold();
+      out.push({ kind: "review", m });
+      continue;
+    }
     if (m.role === "user") {
       // Вставка в ход от подагента (`report`/`ask`) — часть работы, а не реплика
       // человека: уезжает в текущую пачку. Сообщение самого человека и его же
@@ -218,15 +309,19 @@ export function buildBlocks(msgs: TranscriptMessage[], tools: ToolRun[]): Block[
       continue;
     }
     if (m.role !== "assistant") continue; // результаты тулов живут внутри ToolRun
+    const hasText = Boolean(m.content && m.content.trim());
     // Рассуждение хронологически идёт ДО текста своего шага: в пачку, потом текст.
+    // Расход остаётся на той части, которая видна: есть текст — он у `say`,
+    // текста нет (шаг целиком в пачке) — у рассуждения. Иначе у промежуточных
+    // шагов цифр не было вовсе.
     if (m.reasoning) {
       fold.push({
         kind: "msg",
-        m: { ...m, content: null, tool_calls: undefined, usage: undefined },
+        m: { ...m, content: null, tool_calls: undefined, usage: hasText ? undefined : m.usage },
         tools: [],
       });
     }
-    if (m.content && m.content.trim()) {
+    if (hasText) {
       flushFold();
       out.push({ kind: "say", m });
     }

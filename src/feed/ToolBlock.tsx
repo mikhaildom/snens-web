@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { ToolRun } from "../lenta";
-import { argLabel, hasMedia, MARK, MEDIA_TOOLS, viewedPaths } from "../lib/tool";
+import { argLabel, hasMedia, MARK, MEDIA_TOOLS, mediaPaths } from "../lib/tool";
 import { dur, time } from "../lib/time";
 import { Attachments } from "./Attachments";
 
@@ -20,7 +20,7 @@ export function ToolBlock({
   // Тул с медиа раскрыт сразу: смысл вложения — увидеть, что смотрел агент,
   // а не разворачивать блок руками.
   const media = hasMedia(t);
-  const paths = viewedPaths(t);
+  const paths = mediaPaths(t);
   // У медиа-тулов argv и служебный вывод не показываем: они дублируют то, что
   // и так видно — картинки и их пути.
   const quiet = MEDIA_TOOLS.has(t.name) && (paths.length > 0 || media);

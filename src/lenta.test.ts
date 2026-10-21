@@ -11,7 +11,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { applyEvent, buildBlocks, collectTools, type LiveItem } from "./lenta.ts";
+import { applyEvent, buildBlocks, collectTools, liveSteps, type LiveItem } from "./lenta.ts";
 import type { SurfaceEvent, TranscriptMessage } from "./api.ts";
 
 /** Событие стрима, как его отдаёт ядро: seq монотонный, тип + поля. */
@@ -25,9 +25,11 @@ function feed(events: SurfaceEvent[]): LiveItem[] {
 
 /** Краткая подпись ленты: по ней видно и порядок, и склейку. */
 function shape(items: LiveItem[]): string[] {
-  return items.map((it) =>
-    it.kind === "tool" ? `tool:${it.tool.name}:${it.tool.state}` : `${it.kind}:${it.text}`,
-  );
+  return items
+    .filter((it) => it.kind !== "usage")
+    .map((it) =>
+      it.kind === "tool" ? `tool:${it.tool.name}:${it.tool.state}` : `${it.kind}:${it.text}`,
+    );
 }
 
 test("текст до тула остаётся выше тула", () => {
@@ -165,4 +167,93 @@ test("живой тул перекрывает журнальный по call_id
   const tools = collectTools(msgs, live, true);
   assert.equal(tools.length, 1);
   assert.equal(tools[0].state, "running");
+});
+
+test("стрим группируется в шаги так же, как история", () => {
+  const items = feed([
+    ev(1, "assistant.delta", { kind: "reasoning", text: "думаю" }),
+    ev(2, "assistant.delta", { kind: "content", text: "делаю" }),
+    ev(3, "tool.started", { call_id: "c1", name: "run", args: "{}" }),
+    ev(4, "tool.completed", { call_id: "c1", exit: 0, preview: "ok", ms: 12 }),
+    ev(5, "usage", { in_tok: 100, cached_tok: 80, out_tok: 10, reason_tok: 2, cost_micro: 3000 }),
+    ev(6, "assistant.delta", { kind: "content", text: "готово" }),
+  ]);
+  const steps = liveSteps(items);
+  // Два шага: работа с тулом и финальный текст. Внутри первого — рассуждение,
+  // текст и тул в том же порядке, что даёт журнал.
+  assert.equal(steps.length, 2);
+  assert.equal(steps[0].reasoning, "думаю");
+  assert.equal(steps[0].text, "делаю");
+  assert.equal(steps[0].tools.length, 1);
+  assert.equal(steps[0].tools[0].ms, 12);
+  assert.equal(steps[0].usage?.cached_tok, 80);
+  assert.equal(steps[1].text, "готово");
+});
+
+test("вложения и время тула приезжают из стрима, а не только из журнала", () => {
+  const items = feed([
+    ev(1, "tool.started", { call_id: "c1", name: "view", args: "{}" }),
+    ev(2, "tool.completed", {
+      call_id: "c1",
+      exit: 0,
+      ms: 40,
+      parts: [{ kind: "image", path: "/tmp/a.png", mime: "image/png", bytes: 10 }],
+    }),
+  ]);
+  const tool = items.find((it) => it.kind === "tool");
+  assert.ok(tool && tool.kind === "tool");
+  assert.equal(tool.tool.parts?.length, 1);
+  assert.equal(tool.tool.ms, 40);
+});
+
+test("маркер ревью рвёт пачку и стоит отдельным блоком", () => {
+  const msgs: TranscriptMessage[] = [
+    { seq: 1, ts: 0, role: "user", content: "q" },
+    msg(2, {
+      tool_calls: [{ id: "c1", type: "function", function: { name: "run", arguments: "{}" } }],
+    }),
+    { seq: 3, ts: 0, role: "review", content: "саморевью · 12 ходов" },
+    msg(4, { content: "итог" }),
+  ];
+  const blocks = buildBlocks(msgs, collectTools(msgs, [], true));
+  assert.deepEqual(
+    blocks.map((b) => b.kind),
+    ["user", "fold", "review", "say"],
+  );
+});
+
+test("расход приходит до тулов своего шага и не отрывает их", () => {
+  // Порядок ядра: ответ модели → usage → вызовы этого же ответа.
+  const items = feed([
+    ev(1, "assistant.delta", { kind: "content", text: "сейчас выполню" }),
+    ev(2, "usage", { in_tok: 100, cached_tok: 0, out_tok: 5, reason_tok: 0, cost_micro: 1000 }),
+    ev(3, "tool.started", { call_id: "c1", name: "run", args: "{}" }),
+    ev(4, "tool.completed", { call_id: "c1", exit: 0, ms: 5 }),
+    ev(5, "assistant.delta", { kind: "content", text: "готово" }),
+  ]);
+  const steps = liveSteps(items);
+  assert.equal(steps.length, 2);
+  assert.equal(steps[0].text, "сейчас выполню");
+  assert.equal(steps[0].tools.length, 1, "вызов остался в шаге своего ответа");
+  assert.equal(steps[0].usage?.in_tok, 100);
+  assert.equal(steps[1].text, "готово");
+});
+
+test("расход промежуточного шага не пропадает, если текст ушёл в пачку", () => {
+  const usage = { in_tok: 10, cached_tok: 5, out_tok: 2, reason_tok: 1, cost_micro: 7 };
+  const msgs: TranscriptMessage[] = [
+    { seq: 1, ts: 0, role: "user", content: "q" },
+    // Шаг без текста: рассуждение + вызов, расход при нём.
+    msg(2, {
+      reasoning: "думаю",
+      usage,
+      tool_calls: [{ id: "c1", type: "function", function: { name: "run", arguments: "{}" } }],
+    }),
+  ];
+  const blocks = buildBlocks(msgs, collectTools(msgs, [], true));
+  const fold = blocks.find((b) => b.kind === "fold");
+  assert.ok(fold && fold.kind === "fold");
+  const part = fold.parts.find((p) => p.kind === "msg");
+  assert.ok(part && part.kind === "msg");
+  assert.deepEqual(part.m.usage, usage);
 });

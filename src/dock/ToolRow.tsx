@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { ToolRun } from "../lenta";
-import { argLabel, hasMedia, MARK, MEDIA_TOOLS, viewedPaths } from "../lib/tool";
+import { argLabel, hasMedia, MARK, MEDIA_TOOLS, mediaPaths } from "../lib/tool";
 import { dur } from "../lib/time";
 import { Attachments } from "../feed/Attachments";
 import { ToolOutput } from "../feed/ToolBlock";
@@ -8,7 +8,7 @@ import { ToolOutput } from "../feed/ToolBlock";
 /** Вызов тула строкой дока: заголовок-тоггл и раскрытое тело. */
 export function ToolRow({ t, session }: { t: ToolRun; session: string }) {
   const [open, setOpen] = useState(hasMedia(t));
-  const paths = viewedPaths(t);
+  const paths = mediaPaths(t);
   const quiet = MEDIA_TOOLS.has(t.name) && paths.length > 0;
   return (
     <section className="win">

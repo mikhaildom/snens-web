@@ -157,3 +157,14 @@ details.reasoning > div {
   overflow-wrap: anywhere;
   margin-top: 2px;
 }
+
+/* маркер саморевью: тонкая серая строка в ленте */
+.review-mark {
+  margin: calc(var(--step) * 0.25) 0;
+  padding-left: calc(var(--step) * 0.75);
+  border-left: 1px solid var(--hair);
+  color: var(--ink-2);
+  font-size: var(--fs-xs);
+  font-style: italic;
+  opacity: 0.75;
+}

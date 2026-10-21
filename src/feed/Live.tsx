@@ -1,25 +1,34 @@
+import { liveSteps, type LiveItem } from "../lenta";
 import { Markdown } from "../markdown";
-import type { LiveItem } from "../lenta";
 import { MsgHead } from "./Head";
 import { ToolBlock } from "./ToolBlock";
 import { Reasoning } from "./turns";
+import { UsageBar } from "./UsageBar";
 
-/** Живая лента хода: то, что приехало по SSE и ещё не стало историей. */
+/**
+ * Живой ход: те же шаги, что и в истории. Заголовок «snens · стрим» стоит один
+ * раз на весь ход, а внутри — шаги с рассуждением, текстом и тулами, как их
+ * потом покажет журнал. Раньше стрим был плоским списком блоков: другая
+ * группировка, reasoning не свёрнут, тулы отдельными карточками — переход
+ * «стрим → история» перерисовывал ленту целиком.
+ */
 export function Live({ items, session }: { items: LiveItem[]; session: string }) {
-  if (items.length === 0) return null;
+  const steps = liveSteps(items);
+  if (steps.length === 0) return null;
   return (
     <article className="msg msg--assistant msg--pending">
       <MsgHead who="snens" meta={<span>стрим</span>} />
       <div className="msg__main">
-        {items.map((it) =>
-          it.kind === "tool" ? (
-            <ToolBlock key={`t${it.seq}`} t={it.tool} session={session} defaultOpen={false} />
-          ) : it.kind === "reasoning" ? (
-            <Reasoning key={`r${it.seq}`} text={it.text} />
-          ) : (
-            <Markdown key={`x${it.seq}`} text={it.text} />
-          ),
-        )}
+        {steps.map((s, i) => (
+          <div className="step" key={i}>
+            {s.usage && <UsageBar u={s.usage} />}
+            {s.reasoning && <Reasoning text={s.reasoning} />}
+            {s.text && <Markdown text={s.text} />}
+            {s.tools.map((t) => (
+              <ToolBlock key={t.callId} t={t} session={session} defaultOpen={false} />
+            ))}
+          </div>
+        ))}
       </div>
     </article>
   );

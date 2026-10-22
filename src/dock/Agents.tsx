@@ -1,11 +1,14 @@
+import { useEffect, useState } from "react";
 import type { SessionInfo } from "../api";
-import { relTime } from "../lib/time";
-import { agentStatus } from "../lib/agent";
+import { relTime, worked } from "../lib/time";
+import { agentStatus, agentTree, agentOwner, flatten, runningIn, type AgentNode } from "../lib/agent";
 
 /**
- * Подагенты: сессии с `parent`. Ядро отдаёт их списком, отдельной ручки нет —
- * фильтруем по полю. Клик открывает сессию подагента как обычную (с записью в
- * историю браузера — назад возвращает к родителю).
+ * Подагенты: сессии с `parent`, выстроенные в дерево — подагент может запустить
+ * своего подагента, и связь должна быть видна, а не сплющена в один список.
+ *
+ * Клик открывает сессию подагента как обычную (с записью в историю браузера —
+ * «назад» возвращает к родителю).
  */
 export function Agents({
   sessions,
@@ -16,18 +19,27 @@ export function Agents({
   active: string | null;
   onPick: (id: string) => void;
 }) {
-  // «Окна» — про выбранную сессию: показываем только её подагентов. Подагенты
-  // других сессий — шум, у них есть сам rail и поиск.
-  //
-  // Если открыт сам подагент, показываем его братьев: это его рабочая группа,
-  // и человеку нужен способ перескочить на соседнюю задачу, не возвращаясь.
+  // Время работы растёт, пока подагент работает: перерисовываем подписи раз в
+  // секунду, пока в дереве есть живые. Это единственный таймер дока — список
+  // сессий приходит потоком, опроса нет.
+  const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
+  // «Окна» — про выбранную сессию: показываем её подагентов. Если открыт сам
+  // подагент — его братьев: это его рабочая группа, и человеку нужен способ
+  // перескочить на соседнюю задачу, не возвращаясь к родителю.
+  const owner = agentOwner(sessions, active);
+  const tree = owner ? agentTree(sessions, owner) : [];
+  const running = runningIn(tree);
+  const total = flatten(tree).length;
   const current = sessions.find((s) => s.id === active);
-  const owner = current?.parent ?? active;
-  const roots = owner ? sessions.filter((s) => s.parent === owner) : [];
-  const running = roots.filter((s) => s.state === "running" && !s.done).length;
+
+  useEffect(() => {
+    if (running === 0) return;
+    const t = setInterval(() => setNow(Math.floor(Date.now() / 1000)), 1000);
+    return () => clearInterval(t);
+  }, [running]);
 
   if (!active) return <div className="dock__empty">сессия не выбрана.</div>;
-  if (roots.length === 0) {
+  if (tree.length === 0) {
     return (
       <div className="dock__empty">
         подагентов нет.
@@ -39,33 +51,62 @@ export function Agents({
   return (
     <div className="agents">
       <div className="agents__filter">
-        <span>{current?.parent ? "братья по родителю" : "подагенты этой сессии"}</span>
+        <span>{current?.parent ? "рабочая группа" : "подагенты этой сессии"}</span>
         <span className="agents__count">
           {running > 0 ? `${running} работает · ` : ""}
-          {roots.length}
+          {total}
         </span>
       </div>
-      {roots.map((s) => {
-        const st = agentStatus(s);
-        return (
-          <button
-            key={s.id}
-            className="agents__row"
-            aria-current={active === s.id}
-            onClick={() => onPick(s.id)}
-            title={`${s.id} · ${s.model ?? "—"}`}
-          >
-            <span className="agents__state" data-kind={st.kind} />
-            <span className="agents__title">{s.title || s.id.slice(0, 8)}</span>
-            <span className="agents__meta">
-              <span className="agents__status" data-kind={st.kind}>
-                {st.text}
-              </span>
-              <span className="agents__time">{relTime(s.updated_at)}</span>
-            </span>
-          </button>
-        );
-      })}
+      {tree.map((node) => (
+        <AgentRow key={node.session.id} node={node} active={active} now={now} onPick={onPick} />
+      ))}
     </div>
+  );
+}
+
+/** Узел дерева: глубина — отступом, дети — вложенными строками того же вида. */
+function AgentRow({
+  node,
+  active,
+  now,
+  onPick,
+}: {
+  node: AgentNode;
+  active: string | null;
+  now: number;
+  onPick: (id: string) => void;
+}) {
+  const s = node.session;
+  const st = agentStatus(s, now);
+  // «3м 12с» у работающего, «заняло 3м 12с» у закрытого — по одному полю, но
+  // читаются они по-разному, и путать их нельзя.
+  const span = st.workedMs ? worked(st.workedMs) : "";
+  return (
+    <>
+      <button
+        className="agents__row"
+        data-depth={node.depth}
+        aria-current={active === s.id}
+        onClick={() => onPick(s.id)}
+        title={`${s.id} · ${s.model ?? "—"}`}
+      >
+        <span className="agents__state" data-kind={st.kind} />
+        <span className="agents__title">{s.title || s.id.slice(0, 8)}</span>
+        <span className="agents__meta">
+          <span className="agents__status" data-kind={st.kind}>
+            {st.text}
+          </span>
+          {span && (
+            <span className="agents__worked" title={s.state === "running" ? "работает" : "заняло"}>
+              {span}
+            </span>
+          )}
+          <span className="agents__time">{relTime(s.updated_at)}</span>
+        </span>
+      </button>
+      {node.children.map((child) => (
+        <AgentRow key={child.session.id} node={child} active={active} now={now} onPick={onPick} />
+      ))}
+    </>
   );
 }

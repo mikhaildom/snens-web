@@ -4,6 +4,20 @@
 export const time = (ts: number) =>
   new Date(ts * 1000).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
 
+/**
+ * Сколько времени подагент работал: «42с» / «3м 12с» / «1ч 04м».
+ * Отдельно от `dur` (тот про миллисекунды одного вызова тула и с десятыми).
+ */
+export function worked(ms?: number): string {
+  if (ms == null) return "";
+  const total = Math.round(ms / 1000);
+  if (total < 60) return `${total}с`;
+  const min = Math.floor(total / 60);
+  if (min < 60) return `${min}м ${String(total % 60).padStart(2, "0")}с`;
+  const h = Math.floor(min / 60);
+  return `${h}ч ${String(min % 60).padStart(2, "0")}м`;
+}
+
 /** Длительность вызова: «820ms» / «3.4s». */
 export const dur = (ms?: number) =>
   ms == null ? "" : ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${ms}ms`;

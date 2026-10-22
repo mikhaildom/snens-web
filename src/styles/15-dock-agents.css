@@ -70,7 +70,7 @@
 }
 
 /* цвет состояния: работает — акцент мигает, закончил — зелёный, ошибка — красный */
-.agents__state[data-kind="warn"] {
+.agents__state[data-kind="run"] {
   background: var(--accent);
   animation: agents-pulse 1.2s ease-in-out infinite;
 }
@@ -112,7 +112,7 @@
   text-overflow: ellipsis;
 }
 
-.agents__status[data-kind="warn"] {
+.agents__status[data-kind="run"] {
   color: var(--accent);
 }
 
@@ -123,4 +123,36 @@
 .agents__time {
   margin-left: auto;
   opacity: 0.8;
+}
+
+/* сколько подагент работал: цифра рядом со статусом, не вместо него */
+.agents__worked {
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * Иерархия: подагент может запустить своего. Глубина — отступ слева и риска,
+ * чтобы связь читалась без дерева-из-классического-виджета.
+ */
+.agents__row[data-depth="1"] {
+  padding-left: calc(var(--step) * 2);
+  box-shadow: inset 1px 0 0 var(--hair);
+}
+
+.agents__row[data-depth="2"] {
+  padding-left: calc(var(--step) * 3);
+  box-shadow: inset 1px 0 0 var(--hair);
+}
+
+.agents__row[data-depth="3"] {
+  padding-left: calc(var(--step) * 4);
+  box-shadow: inset 1px 0 0 var(--hair);
+}
+
+/* глубже третьего уровня отступ не растёт: док узкий, текст должен влезать */
+.agents__row[data-depth="4"],
+.agents__row[data-depth="5"] {
+  padding-left: calc(var(--step) * 5);
+  box-shadow: inset 1px 0 0 var(--hair);
 }

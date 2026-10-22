@@ -118,3 +118,119 @@
   font-size: var(--fs-xs);
   opacity: 0.8;
 }
+
+/* ── провайдеры ─────────────────────────────────────────────────────────────
+ * Список профилей живёт в той же узкой рельсе, поэтому строка профиля — не
+ * таблица, а три коротких линии: имя с кнопками, адрес с моделью, состояние
+ * ключа. Перенос по словам не даём: base_url длинный и полезнее в подсказке.
+ */
+
+.prov {
+  padding: var(--step) var(--step) 0;
+  /* Панель настроек наследует uppercase у заголовков, но имя профиля и адрес —
+   * данные: `OPEN-ROUTER` вместо `open-router` человек прочитает как другое имя. */
+  text-transform: none;
+  letter-spacing: 0;
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--step) * 0.75);
+}
+
+.prov[aria-busy="true"] {
+  opacity: 0.7;
+}
+
+.prov__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--step) * 0.5);
+}
+
+.prov__item {
+  border-left: 1px solid var(--hair);
+  padding-left: calc(var(--step) * 0.75);
+}
+
+/* Активный профиль — тот, которым ядро ходит прямо сейчас: акцентной линией, а
+ * не только точкой в имени: список читают глазами, а не цветом одного глифа. */
+.prov__item[data-active="true"] {
+  border-left-color: var(--accent);
+}
+
+.prov__head {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.prov__name {
+  flex: 1 1 auto;
+  /* Кнопка по умолчанию кричит капсом: имя профиля — это данные, и `OPENROUTER`
+   * человек прочитает как другое имя, а не как то же самое. */
+  text-transform: none;
+  letter-spacing: 0;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-sm);
+  text-align: left;
+  padding: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.prov__name[aria-pressed="true"] {
+  color: var(--accent);
+}
+
+.prov__name:disabled {
+  cursor: default;
+  opacity: 1;
+}
+
+.prov__pick {
+  flex: 0 0 auto;
+  border: 1px solid var(--hair);
+  background: transparent;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: var(--fs-xs);
+  line-height: 1;
+  padding: 1px 4px;
+}
+
+.prov__pick:disabled {
+  opacity: 0.35;
+}
+
+.prov__meta {
+  color: var(--ink-2);
+  font-size: var(--fs-xs);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Ключа нет — это не «пусто», а «ход упадёт на 401»: метим цветом. */
+.prov__key[data-set="false"] {
+  color: var(--accent);
+}
+
+.prov__form .inst__row > span:first-child {
+  /* Подписи полей — по общему стилю панели, данные — строчными. */
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.prov__form {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--step) * 0.5);
+  padding: calc(var(--step) * 0.5) 0;
+}

@@ -1,3 +1,5 @@
+import type { ProviderDraft, ProviderState } from "./lib/providers.ts";
+
 /**
  * Клиент локального API snens (`snens serve`, loopback:7420).
  * Ходим через /api — dev-сервер (vite proxy) сам подставляет Bearer,
@@ -114,6 +116,14 @@ export interface InstanceConfig {
   path: string;
   values: {
     model: string;
+    /** Адрес API провайдера: у активного профиля — его, иначе top-level ключ. */
+    base_url: string;
+    /** Имя переменной окружения с ключом (значение живёт в `.env`). */
+    key_env: string;
+    /** Имя активного профиля провайдера; пусто — работают top-level ключи. */
+    active_provider: string;
+    /** Сколько профилей заведено: при живом профиле правка `model` ниже бессильна. */
+    providers_count: number;
     subagent_model: string;
     /** 0 — без лимита ходов. */
     max_turns: number;
@@ -212,6 +222,24 @@ export const api = {
     }),
 
   model: () => j<{ model: string }>("/v1/model"),
+
+  /** Профили провайдеров: без ключей, с признаком «ключ задан». */
+  providers: () => j<ProviderState>("/v1/providers"),
+
+  createProvider: (draft: ProviderDraft) =>
+    j<ProviderState>("/v1/providers", { method: "POST", body: JSON.stringify(draft) }),
+
+  updateProvider: (name: string, draft: ProviderDraft) =>
+    j<ProviderState>(`/v1/providers/${encodeURIComponent(name)}`, {
+      method: "PUT",
+      body: JSON.stringify(draft),
+    }),
+
+  removeProvider: (name: string) =>
+    j<ProviderState>(`/v1/providers/${encodeURIComponent(name)}`, { method: "DELETE" }),
+
+  activateProvider: (name: string) =>
+    j<ProviderState>(`/v1/providers/${encodeURIComponent(name)}/activate`, { method: "POST" }),
 
   config: () => j<InstanceConfig>("/v1/config"),
 

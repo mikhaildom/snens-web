@@ -4,6 +4,7 @@ import type { Theme } from "../theme";
 import type { Settings } from "../settings";
 import { ThemeBar } from "./ThemeBar";
 import { InstanceSettings } from "./InstanceSettings";
+import { ProviderSettings } from "./ProviderSettings";
 
 type Props = {
   theme: Theme;
@@ -105,6 +106,14 @@ export function SettingsBar({
                     </span>
                   </label>
                 </div>
+              </section>
+
+              <section className="settings__group">
+                <div className="settings__legend">
+                  провайдеры
+                  <small>куда и с каким ключом ходить; переключение — со следующего хода</small>
+                </div>
+                <ProviderSettings onError={onError} />
               </section>
 
               <section className="settings__group">

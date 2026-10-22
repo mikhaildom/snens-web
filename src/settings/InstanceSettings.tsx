@@ -63,11 +63,29 @@ export function InstanceSettings({
       ) : (
         <>
           <label className="inst__row">
+            <span>провайдер</span>
+            <input
+              className="inst__text"
+              readOnly
+              value={v.active_provider || "(ключи конфига)"}
+              title={v.base_url || v.model}
+            />
+          </label>
+
+          <label className="inst__row">
             <span>модель</span>
             <input
               className="inst__text"
               defaultValue={v.model}
-              title={v.model}
+              // Модель активного провайдера живёт в его профиле: правка этого
+              // поля легла бы в top-level и была бы молча перекрыта профилем —
+              // человек «поменял модель», а ход ушёл старой.
+              disabled={Boolean(v.active_provider)}
+              title={
+                v.active_provider
+                  ? `модель берётся из профиля «${v.active_provider}»`
+                  : v.model
+              }
               onBlur={(e) => {
                 const m = e.target.value.trim();
                 if (m && m !== v.model) patch({ model: m });
@@ -227,6 +245,13 @@ export function InstanceSettings({
               <small>картинки и файлы уезжают модели</small>
             </span>
           </label>
+
+          {v.active_provider ? (
+            <div className="inst__hint">
+              модель и адрес задаёт профиль «{v.active_provider}» — раздел
+              «провайдеры» выше
+            </div>
+          ) : null}
 
           <div className="inst__hint" title={cfg.path}>
             {cfg.path.split("/").pop()}

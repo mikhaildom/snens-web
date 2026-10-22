@@ -34,7 +34,11 @@ export default function App() {
   const [draft, setDraft] = useState("");
   const [railOpen, setRailOpen] = useState(false);
   const [dockOpen, setDockOpen] = useState(() => new URLSearchParams(location.search).has("dock"));
-  const [dockTab, setDockTab] = useState<DockTab>("tools");
+  // `?tab=windows` открывает док сразу на подагентах: без этого скриншот дока
+  // требует сначала клика, а `shot --selector` со скриптом не совмещается.
+  const [dockTab, setDockTab] = useState<DockTab>(() =>
+    new URLSearchParams(location.search).get("tab") === "windows" ? "windows" : "tools",
+  );
   /** Файлы, приложенные к ещё не отправленному сообщению. */
   const [pending, setPending] = useState<PendingFile[]>([]);
   /** Сессия, у которой открыто подтверждение удаления. */
@@ -191,6 +195,7 @@ export default function App() {
         setTheme={setTheme}
         settings={settings}
         setSettings={setSettings}
+        onError={onError}
         open={railOpen}
       />
 

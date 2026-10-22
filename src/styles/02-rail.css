@@ -9,6 +9,8 @@
   border-right: var(--bar) solid var(--line);
   background: var(--paper-2);
   min-height: 0;
+  /* Панель настроек позиционируется от рельсы (см. `.settings__panel`). */
+  position: relative;
 }
 
 .rail__brand {
@@ -94,13 +96,16 @@
   color: var(--ink-2);
 }
 
+/*
+ * Подвал рельсы — только строка «настройки». Раскрытая панель живёт оверлеем
+ * (`position: absolute` от рельсы), а не секцией в потоке: на длинном списке
+ * сессий секция сжимала сама себя до тридцати пикселей со скроллом внутри, и
+ * пользоваться этим было нельзя. `margin-top: auto` держит строку у нижнего края.
+ */
 .rail__foot {
+  position: relative;
   margin-top: auto;
   border-top: var(--bar) solid var(--line);
-  padding: var(--step);
-  display: flex;
-  flex-direction: column;
-  gap: calc(var(--step) * 0.5);
 }
 
 .themebar {

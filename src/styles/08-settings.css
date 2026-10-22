@@ -2,8 +2,10 @@
 
 /* ── настройки ─────────────────────────────────────────── */
 
+/* Кнопка в подвале рельсы. Сама панель — оверлей, см. ниже. */
 .settings {
-  border: var(--bar) solid var(--line);
+  border: 0;
+  border-top: var(--bar) solid var(--line);
 }
 
 .settings__head {
@@ -19,8 +21,103 @@
   letter-spacing: 0.08em;
 }
 
-.settings__body {
+.settings__head[aria-expanded="true"] {
+  color: var(--accent);
+}
+
+/*
+ * Затемнение под панелью: клик мимо закрывает. `position: fixed` — иначе на
+ * длинном списке сессий оно обрезалось бы высотой рельсы.
+ */
+.settings__scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  border: 0;
+  background: color-mix(in srgb, var(--ink) 22%, transparent);
+  cursor: default;
+}
+
+/*
+ * Панель настроек — один экран на всё: «вид» (вкус человека, localStorage) и
+ * «инстанс» (конфиг ядра, config.toml). Два отдельных раскрывающихся блока в
+ * подвале рельсы человек не читал как одно меню, а в потоке панель сжималась до
+ * тридцати пикселей на длинном списке сессий.
+ *
+ * Прокрутка — у самой панели, а не у секции внутри: на невысоком окне она не
+ * должна обрезать содержимое. Потолок по высоте окна минус отступы.
+ */
+.settings__panel {
+  position: fixed;
+  z-index: 21;
+  left: 8px;
+  bottom: 8px;
+  width: min(360px, calc(100vw - 16px));
+  max-height: calc(100vh - 16px);
+  overflow-y: auto;
+  background: var(--paper-2);
+  border: var(--bar) solid var(--line);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--ink) 18%, transparent);
+  display: flex;
+  flex-direction: column;
+}
+
+/*
+ * На широком экране панель прижата к рельсе; на узком рельса — шторка поверх
+ * ленты (см. `12-adaptive.css`), и отступ по `--rail-w` уводил панель за левый
+ * край экрана. Порог тот же, что у шторки.
+ */
+@media (min-width: 761px) {
+  .settings__panel {
+    left: calc(var(--rail-w, 248px) + 8px);
+  }
+}
+
+.settings__title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: calc(var(--step) * 0.5) var(--step);
+  border-bottom: var(--bar) solid var(--line);
+  font-size: var(--fs-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.settings__close {
+  border: 0;
+  background: transparent;
+  color: var(--ink-2);
+  font-size: var(--fs-lg);
+  line-height: 1;
+  padding: 0 4px;
+}
+
+.settings__close:hover {
+  color: var(--accent);
+}
+
+.settings__group + .settings__group {
   border-top: var(--bar) solid var(--line);
+}
+
+.settings__legend {
+  padding: calc(var(--step) * 0.5) var(--step) 0;
+  color: var(--ink-2);
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.settings__legend small {
+  display: block;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: var(--fs-xs);
+  opacity: 0.8;
+}
+
+.settings__body {
   padding: var(--step);
   display: flex;
   flex-direction: column;

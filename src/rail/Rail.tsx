@@ -21,6 +21,8 @@ type RailProps = {
   setTheme: (t: Theme) => void;
   settings: Settings;
   setSettings: (s: Settings) => void;
+  /** Показ ошибок правки настроек — тот же канал, что у остальных экранов. */
+  onError: (e: string) => void;
   open: boolean;
 };
 
@@ -143,6 +145,7 @@ export function Rail(p: RailProps) {
           setTheme={p.setTheme}
           settings={p.settings}
           setSettings={p.setSettings}
+          onError={p.onError}
         />
       </div>
     </nav>

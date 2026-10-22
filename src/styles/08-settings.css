@@ -29,13 +29,23 @@
  * Затемнение под панелью: клик мимо закрывает. `position: fixed` — иначе на
  * длинном списке сессий оно обрезалось бы высотой рельсы.
  */
-.settings__scrim {
+/*
+ * Затемнение — это `<button>` (клик мимо закрывает), и общий `button:hover`
+ * заливал его `--ink`, то есть в тёмной теме фон становился сплошным чёрным.
+ * Курсор над затемнением — обычная стрелка: элемент кликабельный, но не кнопка,
+ * и подсвечивать его при наведении нечем.
+ */
+.settings__scrim,
+.settings__scrim:hover,
+.settings__scrim:focus-visible {
   position: fixed;
   inset: 0;
   z-index: 20;
   border: 0;
   background: color-mix(in srgb, var(--ink) 22%, transparent);
+  color: inherit;
   cursor: default;
+  padding: 0;
 }
 
 /*

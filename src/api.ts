@@ -21,6 +21,10 @@ export interface SessionInfo {
   turns?: number;
   /** Последняя запись `Done` в журнале: `ok`, `max_turns`, пусто — не закрывалась. */
   done?: string;
+  /** Когда подагент начал работу (unix, сек) — первая запись журнала. */
+  started_at?: number;
+  /** Когда подагент закрылся (запись `Done`); пусто — ещё работает. */
+  done_at?: number;
 }
 
 export interface Part {
@@ -102,6 +106,37 @@ export interface SearchHit {
   matches: Array<{ seq: number; role: string; ts: number; snippet: string }>;
 }
 
+/**
+ * Настройки инстанса (`GET/PUT /v1/config`): то, что правится без рестарта.
+ * Действие — со следующего хода: ядро перечитывает файл на каждом ходу.
+ */
+export interface InstanceConfig {
+  path: string;
+  values: {
+    model: string;
+    subagent_model: string;
+    /** 0 — без лимита ходов. */
+    max_turns: number;
+    review_min_turns: number;
+    review_idle_seconds: number;
+    timeout_seconds: number;
+    max_result_chars: number;
+    reduce_output: boolean;
+    attachments: boolean;
+    ctx_window: number;
+    /** 0 — авто по окну модели. */
+    context_budget: number;
+    context_target: number;
+    memory_enabled: boolean;
+    memory_recall: "always" | "session" | "off";
+    memory_retain: boolean;
+    memory_cmd: string;
+  };
+}
+
+/** Конфиг, каким он лежит в файле; правка — подмножеством тех же ключей. */
+export type ConfigPatch = Partial<InstanceConfig["values"]>;
+
 export interface SurfaceEvent {
   seq: number;
   session_id: string;
@@ -178,6 +213,11 @@ export const api = {
 
   model: () => j<{ model: string }>("/v1/model"),
 
+  config: () => j<InstanceConfig>("/v1/config"),
+
+  putConfig: (patch: ConfigPatch) =>
+    j<InstanceConfig>("/v1/config", { method: "PUT", body: JSON.stringify(patch) }),
+
   context: (id: string) =>
     j<{ breakdown: WindowBreakdown; limit: number }>(`/v1/sessions/${id}/context`),
 
@@ -232,6 +272,28 @@ export function subscribe(
   es.onmessage = (m) => {
     try {
       onEvent(JSON.parse(m.data) as SurfaceEvent);
+    } catch {
+      /* битый кадр не должен валить поток */
+    }
+  };
+  if (onError) es.onerror = onError;
+  return () => es.close();
+}
+
+/**
+ * Поток изменений списка сессий (`GET /v1/events`): подагент растёт, пока его
+ * карточка на экране, и без этого висел бы «ждёт» до перезагрузки страницы.
+ * Кадр — уже собранная запись сессии, клиенту остаётся upsert по `id`.
+ */
+export function subscribeSessions(
+  onSession: (s: SessionInfo) => void,
+  onError?: (e: Event) => void,
+): () => void {
+  const es = new EventSource("/api/v1/events");
+  es.onmessage = (m) => {
+    try {
+      const e = JSON.parse(m.data) as { type: string; session: SessionInfo };
+      if (e.type === "session.updated" && e.session?.id) onSession(e.session);
     } catch {
       /* битый кадр не должен валить поток */
     }

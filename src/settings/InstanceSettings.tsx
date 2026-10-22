@@ -15,18 +15,27 @@ export function InstanceSettings({
   onError: (e: string) => void;
 }) {
   const [cfg, setCfg] = useState<InstanceConfig | null>(null);
+  /** Ядро старше маршрута `/v1/config` — показываем это, а не ошибку 404. */
+  const [stale, setStale] = useState(false);
   /** Что уже отправлено, но ещё не подтверждено: поле не дёргается под рукой. */
   const [busy, setBusy] = useState(false);
 
   // Панель настроек уже открыта — значит и конфиг нужен сразу: отдельного
   // раскрытия у этого блока больше нет (он раздел общего меню).
   useEffect(() => {
-    if (cfg) return;
+    if (cfg || stale) return;
     api
       .config()
       .then(setCfg)
-      .catch((e) => onError(String(e instanceof Error ? e.message : e)));
-  }, [cfg, onError]);
+      // Клиент обновляется отдельно от ядра (это два сервиса), и между их
+      // рестартами маршрута может ещё не быть. 404 — не поломка настроек, а
+      // «ядро старее»: говорим это прямо, а не пугаем ошибкой.
+      .catch((e) => {
+        const msg = String(e instanceof Error ? e.message : e);
+        if (msg.includes("not_found") || msg.includes("404")) setStale(true);
+        else onError(msg);
+      });
+  }, [cfg, stale, onError]);
 
   /** Одна правка — один PUT: ответ уже содержит актуальные значения. */
   async function patch(p: ConfigPatch) {
@@ -44,7 +53,12 @@ export function InstanceSettings({
 
   return (
     <div className="inst__body" aria-busy={busy}>
-      {!v ? (
+      {stale ? (
+        <div className="inst__hint">
+          ядро не отдаёт /v1/config — оно старше этого клиента. Настройки
+          появятся после его обновления.
+        </div>
+      ) : !v ? (
         <div className="inst__hint">загрузка…</div>
       ) : (
         <>

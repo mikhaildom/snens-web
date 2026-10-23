@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import "@fontsource/jetbrains-mono/400.css";
 import "@fontsource/jetbrains-mono/700.css";
 import App from "./App";
+import { PairGate } from "./pair/PairGate";
 import { applyTheme, initialTheme } from "./theme";
 import "./index.css";
 
@@ -11,6 +12,10 @@ applyTheme(initialTheme());
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <App />
+    {/* Сначала соединение с ядром, потом лента: без адреса и токена
+        приложению нечего запрашивать (см. `pair/PairGate.tsx`). */}
+    <PairGate>
+      <App />
+    </PairGate>
   </StrictMode>,
 );

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, uuid, type SessionInfo } from "./api";
+import { connection, surfaceLabel } from "./lib/connection";
 import { buildBlocks, collectTools } from "./lenta";
 import { applyTheme, initialTheme, type Theme } from "./theme";
 import { initialSettings, saveSettings, type Settings } from "./settings";
@@ -18,6 +19,7 @@ import { EmptySession, Feed, Hello } from "./feed/Feed";
 import { Agents } from "./dock/Agents";
 import { ContextWindow } from "./dock/ContextWindow";
 import { Dock, type DockTab } from "./dock/Dock";
+import { Dashboard } from "./dashboard/Dashboard";
 
 /** Приложение: состояние сессии и раскладка, вся разметка — в компонентах. */
 export default function App() {
@@ -34,6 +36,12 @@ export default function App() {
   const [draft, setDraft] = useState("");
   const [railOpen, setRailOpen] = useState(false);
   const [dockOpen, setDockOpen] = useState(() => new URLSearchParams(location.search).has("dock"));
+  /**
+   * Дашборд — страница приложения (`?dash=1`), а не модалка: у него свой
+   * скролл, свои фильтры и возврат к ленте. В URL — чтобы ссылка на вид
+   * тикетов переживала перезагрузку, как `?dock` и `?settings`.
+   */
+  const [dashOpen, setDashOpen] = useState(() => new URLSearchParams(location.search).has("dash"));
   // `?tab=windows` открывает док сразу на подагентах: без этого скриншот дока
   // требует сначала клика, а `shot --selector` со скриптом не совмещается.
   const [dockTab, setDockTab] = useState<DockTab>(() =>
@@ -72,6 +80,14 @@ export default function App() {
   const parent = current?.parent ? sessions.find((s) => s.id === current.parent) : undefined;
   const roots = sessions.filter((s) => !s.parent).length;
 
+  // Кнопки браузера меняют адрес — забираем из него признак дашборда, как это
+  // делает `useActiveSession` для сессии.
+  useEffect(() => {
+    const onPop = () => setDashOpen(new URLSearchParams(location.search).has("dash"));
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
   useEffect(() => {
     applyTheme(theme);
   }, [theme]);
@@ -96,10 +112,56 @@ export default function App() {
   }, [reload]);
 
   // Заголовок вкладки — заголовок сессии: в списке вкладок браузера видно, где
-  // что, без переключения.
+  // что, без переключения. В окне десктоп-оболочки хвост «— snens» лишний (там
+  // и так одно приложение на всё окно), вместо него — пометка поверхности:
+  // скриншот или переключение окон не должны путать десктоп с браузером.
   useEffect(() => {
-    document.title = current?.title ? `${current.title} — snens` : "snens";
+    const surface = surfaceLabel(connection().source);
+    document.title = current?.title
+      ? surface === "desktop"
+        ? `${current.title} · desktop`
+        : `${current.title} — snens`
+      : "snens";
   }, [current?.title]);
+
+  /**
+   * Открыть дашборд: `pushState` — возврат («назад» или кнопка в дашборде)
+   * должен вести к ленте, а не в начало приложения. Текущая лента остаётся
+   * живой под страницей: уход с неё не рвёт SSE — компонент просто скрыт.
+   */
+  function openDashboard() {
+    const url = new URL(location.href);
+    url.searchParams.set("dash", "1");
+    history.pushState({ ...(history.state ?? {}), dash: true }, "", url);
+    setDashOpen(true);
+  }
+
+  /** Закрыть дашборд: шаг назад по истории, а не своя отмена состояния. */
+  function closeDashboard() {
+    const url = new URL(location.href);
+    if (history.state?.dash) {
+      history.back();
+      return;
+    }
+    // Пришли по прямой ссылке (?dash=1) — шага назад нет, чистим адрес сами.
+    url.searchParams.delete("dash");
+    history.replaceState(history.state, "", url);
+    setDashOpen(false);
+  }
+
+  /**
+   * Переход из дашборда в сессию: дашборд закрываем, но `dashTab` в адресе
+   * оставляем — «назад» вернёт на ту же вкладку, а не на «тикеты».
+   * Снимаем только сам признак страницы, до `push` истории: иначе запись
+   * сессии утащила бы `?dash=1` за собой и лента осталась бы скрытой.
+   */
+  function openSessionFromDashboard(id: string) {
+    const url = new URL(location.href);
+    url.searchParams.delete("dash");
+    history.replaceState(history.state, "", url);
+    setDashOpen(false);
+    openChild(id);
+  }
 
   /** Выбор сессии в рельсе: закрыть шторку, снять поиск. Историю не растим. */
   function pick(id: string | null) {
@@ -189,6 +251,7 @@ export default function App() {
         setRemoving={setRemoving}
         onPick={pick}
         onNew={newSession}
+        onDashboard={openDashboard}
         onRemove={removeSession}
         onClose={() => setRailOpen(false)}
         theme={theme}
@@ -213,7 +276,12 @@ export default function App() {
           onBack={back}
         />
 
-        <div className="feed" ref={feedRef}>
+        {/* Дашборд занимает место ленты: это страница, а не слой поверх.
+            Лента остаётся смонтированной (скрыта), чтобы не терять скролл и
+            живой поток, когда человек вернётся. */}
+        {dashOpen && <Dashboard onClose={closeDashboard} onOpenSession={openSessionFromDashboard} onError={onError} />}
+
+        <div className="feed" ref={feedRef} data-hidden={dashOpen}>
           {loading && <div className="msg msg--system">загрузка…</div>}
           {!loading && !active && (
             <Hello
@@ -246,6 +314,7 @@ export default function App() {
         </div>
 
         <Composer
+          hidden={dashOpen}
           draft={draft}
           setDraft={setDraft}
           pending={pending}

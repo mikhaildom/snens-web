@@ -43,3 +43,45 @@
 .composer__size {
   color: var(--ink-2);
 }
+
+/* «+» и send живут внутри рамки бокса: своих внешних рамок у них нет, только
+   разделительные правила, — иначе бокс выглядел рамочкой в рамочке. */
+.composer__box .composer__attach {
+  /* По низу, как и send: при выросшем поле кнопки должны стоять на одной
+     линии с последней строкой, а не разъезжаться по высоте колонки. */
+  align-self: flex-end;
+  border: 0;
+  border-right: var(--bar) solid var(--line);
+  background: transparent;
+  font-size: var(--fs-md);
+  line-height: 1;
+  padding: calc(var(--step) * 0.75);
+}
+
+.composer__box .composer__attach:hover {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+/* send прижат к низу бокса (`align-items: flex-end`): при выросшем поле он
+   остаётся под пальцем, а не уезжает вверх вместе с первой строкой. */
+.composer__box .composer__send {
+  align-self: flex-end;
+  border: 0;
+  border-left: var(--bar) solid var(--line);
+  margin: 0;
+  padding: calc(var(--step) * 0.75);
+  font-size: var(--fs-xs);
+}
+
+/* Пустой черновик: кнопка на месте, но неактивна — раскладка не прыгает. */
+.composer__box .composer__send:disabled {
+  background: var(--paper-2);
+  color: var(--ink-2);
+  cursor: default;
+}
+
+.composer__box .composer__send:disabled:hover {
+  background: var(--paper-2);
+  color: var(--ink-2);
+}

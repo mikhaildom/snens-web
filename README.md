@@ -18,7 +18,30 @@ npm run lint     # oxlint
 
 Dev-сервер проксирует `/api` → `127.0.0.1:7420` и подставляет Bearer из
 `~/.local/share/snens/api.token`, поэтому токен не попадает в бандл.
-Переопределить: `SNENS_API_BASE`, `SNENS_API_TOKEN_FILE` (см. `vite.config.ts`).
+Переопределить: `SNENS_API_BASE`, `SNENS_API_TOKEN_FILE`, `SNENS_PROXY=0` — выключить
+прокси совсем (проверка прямого режима на том же порту, см. `vite.config.ts`).
+
+## Прямое подключение к ядру
+
+Клиент умеет работать без прокси: со своим адресом ядра и токеном. Источники
+соединения по приоритету (`src/lib/connection.ts`):
+
+1. `window.__SNENS__ = {baseUrl, token}` — инжектит десктоп-оболочка (Tauri);
+2. `localStorage["snens-connection"]` — человек подключился через экран пейринга;
+3. ничего — режим vite-proxy (относительный `/api`), поведение как раньше.
+
+Экран пейринга (`src/pair/`) показывается, только если соединения нет И
+на странице нет прокси (`__SNENS_PROXY__`, ставится конфигом сборки). В dev-режиме
+его не видно. Статус соединения и «отключиться» — в настройках, раздел
+«соединение».
+
+SSE и медиа браузер запрашивает без заголовков, поэтому:
+
+- SSE (`EventSource`) идёт с `?token=…` — иначе теряется авто-переподключение;
+  ядро принимает его только на потоковых GET (`/events`);
+- файлы сессии (`/v1/sessions/{id}/file`) при прямом подключении качаются
+  `fetch`-ом с `Authorization` и отдаются `blob:` (`src/hooks/useFileSrc.ts`),
+  потому что `?token=` ядро на них не принимает (401).
 
 Параметры адреса: `?session=<id>` — открыть сессию, `?nostream=1` — снимок без
 SSE (скриншоты, отладка), `?dock=1` — док раскрыт, `?theme=light|dark|auto` —
@@ -39,6 +62,7 @@ src/
   hooks/          эффекты, вынутые из App: useActiveSession (?session и replaceState),
                   useSessions, useTranscript (история + SSE), useContextWindow, useSearch (дебаунс)
   lib/            чистые функции: time (time/dur/relTime), format (stepsWord/shortArgs/fileUrl),
+                  connection (источники соединения, URL, разбор claim/ошибок),
                   tool (MARK/hasMedia/viewedPaths/argLabel), parts, context (лимит окна)
   feed/           лента: Feed (блоки + approval/error), turns (Step/UserTurn/Say), Fold,
                   ToolBlock, media (Lightbox/Shots/Voices), Attachments, UsageBar, Recall, Live, Head
@@ -46,6 +70,8 @@ src/
   rail/           Rail (поиск, список, удаление), Topbar, Statusbar
   composer/       Composer: черновик, вложения, drag&drop
   settings/       SettingsBar + ThemeBar
+  pair/           PairGate (соединение или приложение), PairScreen (форма и индикатор),
+                  claim (POST /v1/pair/claim → соединение)
   styles/         CSS по слоям; порядок @import в index.css = приоритет каскада
 ```
 

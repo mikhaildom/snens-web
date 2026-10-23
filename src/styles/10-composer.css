@@ -10,25 +10,51 @@
   gap: calc(var(--step) * 0.5);
 }
 
+/*
+ * Бокс ввода — один прямоугольник: рамка у контейнера, а не у трёх его
+ * частей. Поле, «+» и send стоят внутри рамки и разделены своими правилами,
+ * поэтому читаются как один инструмент, а не как три кнопки в ряд.
+ * Высотой поля управляет JS (`composer/autosize.ts`): `min-height` здесь —
+ * только та же нижняя граница, что в константе LINE_HEIGHT.
+ */
 .composer__box {
   display: flex;
-  gap: calc(var(--step) * 0.5);
-  align-items: flex-start;
+  align-items: flex-end;
+  border: var(--bar) solid var(--line);
+  background: var(--paper);
+}
+
+/* Фокус подсвечивает весь бокс: граница поля внутренняя, и отдельный outline
+   у textarea рисовал рамку внутри рамки. */
+.composer__box:focus-within {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
 }
 
 .composer textarea {
   flex: 1;
+  min-width: 0;
   resize: none;
   min-height: 44px;
-  max-height: 180px;
+  /* Предел высоты считает JS по высоте окна; CSS-предел — страховка от
+     кадра до первого пересчёта. */
+  max-height: 40vh;
   padding: calc(var(--step) * 0.75);
-  border: var(--bar) solid var(--line);
-  background: var(--paper);
+  border: 0;
+  background: transparent;
   font-size: var(--fs-md);
+  line-height: 1.5;
+  overflow-y: hidden;
+  outline: none;
 }
 
+/* Placeholder не мельче и не жирнее текста, только приглушённый по цвету:
+   он подсказка, а не отдельный мелкий шрифт. */
 .composer textarea::placeholder {
   color: var(--ink-2);
+  font-size: var(--fs-md);
+  font-weight: 400;
+  opacity: 1;
 }
 
 .statusbar {
@@ -85,4 +111,10 @@
   display: block;
   height: 100%;
   background: var(--accent);
+}
+
+/* `hidden` у флекс-бокса не работает сам по себе: display из класса его
+   перебивает. На дашборде composer спрятан — там нечего отправлять. */
+.composer[hidden] {
+  display: none;
 }

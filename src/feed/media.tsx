@@ -1,7 +1,15 @@
 import { useEffect } from "react";
 import type { Part } from "../api";
-import { fileUrl } from "../lib/format";
+import { useFileSrc } from "../hooks/useFileSrc.ts";
 import { splitParts } from "../lib/parts";
+
+/**
+ * Медиа сессии. Источник файла берётся не строкой, а хуком `useFileSrc`: в
+ * режиме proxy это `<img src="/api/...">`, при прямом подключении — `blob:` из
+ * `fetch` с заголовком (браузерные теги `Authorization` не умеют, а `?token=` ядро
+ * принимает только на потоковых GET). Поэтому у каждого тега — свой маленький
+ * компонент: хук нельзя вызвать в `.map`.
+ */
 
 /** Esc — закрыть, стрелки — листать. Прокрутка страницы на время просмотра снята. */
 function useLightboxKeys(
@@ -23,6 +31,49 @@ function useLightboxKeys(
       document.body.style.overflow = "";
     };
   }, [index, count, onClose, onIndex]);
+}
+
+function LightboxImage({
+  session,
+  part,
+  onStop,
+}: {
+  session: string;
+  part: Part;
+  onStop: (e: React.MouseEvent) => void;
+}) {
+  const src = useFileSrc(session, part.path);
+  if (!src) return null;
+  return (
+    <img
+      className="lightbox__img"
+      src={src}
+      alt={part.path.split("/").pop() ?? "image"}
+      onClick={onStop}
+    />
+  );
+}
+
+/**
+ * Ссылка «файл» в лайтбоксе. При прямом подключении `href` — уже полученный
+ * `blob:` (та же загрузка, что у картинки): обычный `<a>` без заголовка получил
+ * бы 401. Атрибут `download` остаётся, но имя файла даёт браузер из blob-URL,
+ * поэтому подпись ссылки — имя файла, а не «скачать».
+ */
+function FileLink({ session, part }: { session: string; part: Part }) {
+  const src = useFileSrc(session, part.path);
+  return (
+    <a
+      className="lightbox__file"
+      href={src ?? "#"}
+      target="_blank"
+      rel="noreferrer"
+      download={part.path.split("/").pop()}
+      aria-disabled={!src}
+    >
+      {src ? "файл" : "файл…"}
+    </a>
+  );
 }
 
 /** Полноэкранный просмотр картинки: без растягивания, с листанием. */
@@ -50,19 +101,12 @@ export function Lightbox({
           {part.width && part.height ? `${part.width}×${part.height}` : ""}
           {parts.length > 1 ? ` · ${index + 1}/${parts.length}` : ""}
         </span>
-        <a className="lightbox__file" href={fileUrl(session, part.path)} target="_blank" rel="noreferrer">
-          файл
-        </a>
+        <FileLink session={session} part={part} />
         <button className="lightbox__close" onClick={onClose} aria-label="закрыть">
           ×
         </button>
       </div>
-      <img
-        className="lightbox__img"
-        src={fileUrl(session, part.path)}
-        alt={part.path.split("/").pop() ?? "image"}
-        onClick={(e) => e.stopPropagation()}
-      />
+      <LightboxImage session={session} part={part} onStop={(e) => e.stopPropagation()} />
       {parts.length > 1 && (
         <>
           <button
@@ -91,6 +135,35 @@ export function Lightbox({
   );
 }
 
+function Shot({ session, part, onOpen }: { session: string; part: Part; onOpen: () => void }) {
+  const src = useFileSrc(session, part.path);
+  return (
+    <button
+      className="shot"
+      onClick={onOpen}
+      title={`${part.path}${part.width ? ` · ${part.width}×${part.height}` : ""}`}
+    >
+      {src && (
+        <img
+          src={src}
+          alt={part.path.split("/").pop() ?? "image"}
+          loading="lazy"
+          onError={(e) => {
+            (e.currentTarget as HTMLImageElement).closest(".shot")?.remove();
+          }}
+        />
+      )}
+    </button>
+  );
+}
+
+function ShotVideo({ session, part }: { session: string; part: Part }) {
+  const src = useFileSrc(session, part.path);
+  // `src` появляется после загрузки — тег всё равно рендерим сразу: у него есть
+  // собственные размеры и подпись, и место в ленте не должно прыгать.
+  return <video src={src ?? undefined} controls preload="metadata" />;
+}
+
 /** Вложения-картинки/видео одной строкой; листание — в `Lightbox`. */
 export function Shots({
   session,
@@ -106,26 +179,29 @@ export function Shots({
     <div className="shots">
       {visual.map((p) =>
         p.kind === "image" ? (
-          <button
+          <Shot
             key={p.path}
-            className="shot"
-            onClick={() => onOpen(images.indexOf(p))}
-            title={`${p.path}${p.width ? ` · ${p.width}×${p.height}` : ""}`}
-          >
-            <img
-              src={fileUrl(session, p.path)}
-              alt={p.path.split("/").pop() ?? "image"}
-              loading="lazy"
-              onError={(e) => {
-                (e.currentTarget as HTMLImageElement).closest(".shot")?.remove();
-              }}
-            />
-          </button>
+            session={session}
+            part={p}
+            onOpen={() => onOpen(images.indexOf(p))}
+          />
         ) : (
-          <video key={p.path} src={fileUrl(session, p.path)} controls preload="metadata" />
+          <ShotVideo key={p.path} session={session} part={p} />
         ),
       )}
     </div>
+  );
+}
+
+function Voice({ session, part }: { session: string; part: Part }) {
+  const src = useFileSrc(session, part.path);
+  return (
+    <figure className="voice">
+      <audio src={src ?? undefined} controls preload="metadata" />
+      <figcaption>
+        {part.kind === "audio" ? "голосовое" : part.kind} · {(part.bytes / 1024).toFixed(0)} КБ
+      </figcaption>
+    </figure>
   );
 }
 
@@ -135,12 +211,7 @@ export function Voices({ session, parts }: { session: string; parts?: Part[] }) 
   return (
     <>
       {audio.map((p) => (
-        <figure className="voice" key={p.path}>
-          <audio src={fileUrl(session, p.path)} controls preload="metadata" />
-          <figcaption>
-            {p.kind === "audio" ? "голосовое" : p.kind} · {(p.bytes / 1024).toFixed(0)} КБ
-          </figcaption>
-        </figure>
+        <Voice key={p.path} session={session} part={p} />
       ))}
     </>
   );

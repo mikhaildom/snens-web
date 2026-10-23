@@ -12,6 +12,10 @@ import { defineConfig } from 'vite'
 const tokenFile =
   process.env.SNENS_API_TOKEN_FILE ??
   path.join(os.homedir(), '.local/share/snens/api.token')
+// Прокси можно выключить совсем (SNENS_PROXY=0): так проверяется режим прямого
+// подключения на том же порту — без него `/api` молча уходил бы в ядро, и тест
+// «работает ли window.__SNENS__» доказывал бы работу прокси.
+const proxyOn = process.env.SNENS_PROXY !== '0'
 const apiBase = process.env.SNENS_API_BASE ?? 'http://127.0.0.1:7420'
 const token = fs.existsSync(tokenFile) ? fs.readFileSync(tokenFile, 'utf8').trim() : ''
 /**
@@ -24,6 +28,9 @@ const port = Number(process.env.SNENS_WEB_PORT ?? 5174)
 
 export default defineConfig({
   plugins: [react()],
+  // Признак «на этой странице есть прокси /api» уезжает в бандл константой:
+  // по нему `lib/connection.ts` решает, показывать ли экран пейринга.
+  define: { __SNENS_PROXY__: JSON.stringify(proxyOn) },
   server: {
     // слушаем tailscale: и ssh-туннель, и десктоп-обёртка бьются в тот же адрес
     host: '100.73.69.107',
@@ -32,18 +39,24 @@ export default defineConfig({
     allowedHosts: true,
     watch: { ignored: ['**/dist/**'] },
     proxy: {
-      '/api': {
-        target: apiBase,
-        changeOrigin: false,
-        rewrite: (p) => p.replace(/^\/api/, ''),
-        // SSE не должен буферизоваться прокси
-        configure: (proxy) => {
-          proxy.on('proxyReq', (req) => {
-            if (token) req.setHeader('Authorization', `Bearer ${token}`)
-            req.setHeader('Accept-Encoding', 'identity')
-          })
-        },
-      },
+      // При SNENS_PROXY=0 прокси нет вовсе: клиент обязан сам знать адрес
+      // (окно оболочки или пейринг) — это и есть проверка прямого режима.
+      ...(proxyOn
+        ? {
+            '/api': {
+              target: apiBase,
+              changeOrigin: false,
+              rewrite: (p: string) => p.replace(/^\/api/, ''),
+              // SSE не должен буферизоваться прокси
+              configure: (proxy) => {
+                proxy.on('proxyReq', (req) => {
+                  if (token) req.setHeader('Authorization', `Bearer ${token}`)
+                  req.setHeader('Accept-Encoding', 'identity')
+                })
+              },
+            },
+          }
+        : {}),
     },
   },
 })

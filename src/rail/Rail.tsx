@@ -1,6 +1,7 @@
 import type { SearchHit, SessionInfo } from "../api";
 import type { Settings } from "../settings";
 import type { Theme } from "../theme";
+import { connection, surfaceLabel } from "../lib/connection";
 import { relTime } from "../lib/time";
 import { SettingsBar } from "../settings/SettingsBar";
 
@@ -15,6 +16,8 @@ type RailProps = {
   setRemoving: (id: string | null) => void;
   onPick: (id: string) => void;
   onNew: () => void;
+  /** Открыть дашборд тикетов и ревью — отдельной страницей. */
+  onDashboard: () => void;
   onRemove: (id: string) => void;
   onClose: () => void;
   theme: Theme;
@@ -26,7 +29,12 @@ type RailProps = {
   open: boolean;
 };
 
-/** Левая рельса: поиск по журналам, список сессий, создание, настройки. */
+/**
+ * Левая рельса: поиск по журналам, список сессий, создание, настройки.
+ *
+ * Бейдж рядом с маркой — не константа: в окне десктоп-оболочки «web» было бы
+ * враньём (`lib/connection.ts` знает, где клиент запущен).
+ */
 export function Rail(p: RailProps) {
   const roots = p.sessions.filter((s) => !s.parent);
   const searchMode = p.query.trim().length > 0;
@@ -34,7 +42,7 @@ export function Rail(p: RailProps) {
     <nav className="rail" data-open={p.open} aria-label="sessions">
       <div className="rail__brand">
         <span className="rail__mark">snens</span>
-        <span className="rail__ver">web</span>
+        <span className="rail__ver">{surfaceLabel(connection().source)}</span>
         <button className="rail__close" onClick={p.onClose} aria-label="закрыть">
           ×
         </button>
@@ -54,9 +62,16 @@ export function Rail(p: RailProps) {
 
       <div className="rail__section">
         <span>{searchMode ? `найдено ${p.hits.length}` : `sessions ${roots.length}`}</span>
-        <button className="ghost" title="new session" onClick={p.onNew}>
-          +
-        </button>
+        <span className="rail__actions">
+          {/* Дашборд рядом с «+»: это второй способ начать работу, а не
+              настройка — поэтому в секции, а не в подвале. */}
+          <button className="ghost rail__dash" title="тикеты и ревью" onClick={p.onDashboard}>
+            ▤
+          </button>
+          <button className="ghost" title="new session" onClick={p.onNew}>
+            +
+          </button>
+        </span>
       </div>
 
       {searchMode ? (

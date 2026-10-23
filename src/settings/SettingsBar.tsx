@@ -2,6 +2,8 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 import type { Theme } from "../theme";
 import type { Settings } from "../settings";
+import { connection } from "../lib/connection.ts";
+import { ConnectionBar } from "../pair/PairScreen";
 import { ThemeBar } from "./ThemeBar";
 import { InstanceSettings } from "./InstanceSettings";
 import { ProviderSettings } from "./ProviderSettings";
@@ -38,6 +40,9 @@ export function SettingsBar({
   const [open, setOpen] = useState(() =>
     new URLSearchParams(location.search).has("settings"),
   );
+  // Источник соединения — из слоя, а не из состояния: он не меняется без
+  // перезагрузки страницы (после отключения мы её и делаем).
+  const conn = connection();
   return (
     <div className="settings" data-open={open}>
       <button
@@ -114,6 +119,22 @@ export function SettingsBar({
                   <small>куда и с каким ключом ходить; переключение — со следующего хода</small>
                 </div>
                 <ProviderSettings onError={onError} />
+              </section>
+
+              <section className="settings__group">
+                <div className="settings__legend">
+                  соединение
+                  <small>куда клиент ходит и чем подписывается</small>
+                </div>
+                {/* Отключение = забыть адрес и токен устройства и перезагрузиться:
+                    соединение кэшировано на старте модуля, и без перезагрузки
+                    часть запросов ушла бы по старому адресу. */}
+                <ConnectionBar
+                  conn={conn.conn}
+                  source={conn.source}
+                  onChanged={() => location.reload()}
+                  onError={onError}
+                />
               </section>
 
               <section className="settings__group">

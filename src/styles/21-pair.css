@@ -1,0 +1,129 @@
+/* экран подключения к ядру и строка состояния соединения */
+
+/* ── подключение к ядру ────────────────────────────────── */
+
+/*
+ * Форма пейринга — единственный экран без рельсы и ленты: пока адреса нет,
+ * показывать нечего. По центру, той же шириной, что приветствие: это тоже
+ * «пустое» состояние приложения, а не отдельное приложение.
+ */
+.pair {
+  margin: auto;
+  width: min(48ch, calc(100vw - 4 * var(--step)));
+  padding: calc(var(--step) * 2) 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--step);
+  /* тело — центрируем по обеим осям: без этого форма прилипала к верху */
+  align-self: center;
+}
+
+.pair__mark {
+  font-size: 40px;
+  line-height: 1;
+  letter-spacing: 0.18em;
+  font-weight: 700;
+  background: var(--ink);
+  color: var(--paper);
+  padding: 6px 10px;
+  display: inline-block;
+  align-self: flex-start;
+}
+
+.pair__lead {
+  margin: 0 0 calc(var(--step) * 0.5);
+  color: var(--ink-2);
+  line-height: 1.6;
+}
+
+.pair__lead code {
+  background: var(--paper-2);
+  border: 1px solid var(--hair);
+  padding: 0 3px;
+}
+
+/* Подпись над полем: в узкой форме две колонки сжимали placeholder в ничто. */
+.pair__row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-2);
+}
+
+.pair__row input {
+  font: inherit;
+  font-size: var(--fs-sm);
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--ink);
+  background: var(--paper);
+  border: var(--bar) solid var(--line);
+  padding: calc(var(--step) * 0.5);
+}
+
+/*
+ * Ошибка ядра текстом: `{error:{code,message}}` приходит уже разобранным
+ * (`lib/connection.ts: errorText`). Красная рамка — чтобы её не читали как
+ * подсказку под формой.
+ */
+.pair__error {
+  border: var(--bar) solid var(--accent);
+  color: var(--accent);
+  padding: calc(var(--step) * 0.5);
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+}
+
+.pair__submit {
+  align-self: flex-start;
+  padding: calc(var(--step) * 0.5) calc(var(--step) * 2);
+}
+
+.pair__submit:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+/* ── строка соединения в настройках ────────────────────── */
+
+.conn {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--step);
+  padding: var(--step);
+  font-size: var(--fs-sm);
+}
+
+.conn__where {
+  min-width: 0;
+  line-height: 1.5;
+}
+
+.conn__where b {
+  font-weight: 700;
+  word-break: break-all;
+}
+
+.conn__where small {
+  display: block;
+  color: var(--ink-2);
+  font-size: var(--fs-xs);
+}
+
+.conn__off {
+  flex: 0 0 auto;
+  /* Кнопка редкая и опасная (выход из соединения) — не должна быть широкой. */
+  padding: calc(var(--step) * 0.25) calc(var(--step) * 0.75);
+}
+
+.conn__note {
+  flex: 0 0 auto;
+  color: var(--ink-2);
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}

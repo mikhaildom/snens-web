@@ -128,3 +128,14 @@
   background: var(--ink);
   color: var(--paper);
 }
+
+/* Кнопки секции рельсы: дашборд и «+» в одну строку, прижаты вправо. */
+.rail__actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.rail__dash {
+  font-size: var(--fs-sm);
+}

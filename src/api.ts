@@ -1,9 +1,14 @@
 import type { ProviderDraft, ProviderState } from "./lib/providers.ts";
+import type { Review, Ticket, TicketBody } from "./dashboard/filters.ts";
+import { apiUrl, authHeaders, connection, queryAuthUrl } from "./lib/connection.ts";
 
 /**
- * Клиент локального API snens (`snens serve`, loopback:7420).
- * Ходим через /api — dev-сервер (vite proxy) сам подставляет Bearer,
- * чтобы токен не оказался в бандле.
+ * Клиент API snens (`snens serve`).
+ *
+ * Куда ходить и чем подписываться — решает `lib/connection.ts`: либо прямой
+ * адрес ядра с Bearer (десктоп-оболочка через `window.__SNENS__`, браузер после
+ * пейринга), либо относительный `/api`, где Bearer подставляет dev-сервер
+ * (vite proxy) и токен не попадает в бандл. Здесь только сам контракт /v1.
  */
 
 export interface SessionInfo {
@@ -178,21 +183,29 @@ export function uuid(): string {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
-async function j<T>(path: string, init?: RequestInit): Promise<T> {
-  const r = await fetch(`/api${path}`, {
-    ...init,
-    headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
-  });
-  if (!r.ok) {
-    let detail = `${r.status} ${r.statusText}`;
-    try {
-      const b = await r.json();
-      if (b?.error?.message) detail = `${b.error.code}: ${b.error.message}`;
-    } catch {
-      /* тело не JSON — оставляем статус */
-    }
-    throw new Error(detail);
+/** Ошибка запроса текстом: `{error:{code,message}}` ядра, иначе статус. */
+async function failure(r: Response): Promise<Error> {
+  let detail = `${r.status} ${r.statusText}`;
+  try {
+    const b = await r.json();
+    if (b?.error?.message) detail = `${b.error.code}: ${b.error.message}`;
+  } catch {
+    /* тело не JSON — оставляем статус */
   }
+  return new Error(detail);
+}
+
+async function j<T>(path: string, init?: RequestInit): Promise<T> {
+  const conn = connection().conn;
+  const r = await fetch(apiUrl(path, conn), {
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      ...authHeaders(conn),
+      ...(init?.headers ?? {}),
+    },
+  });
+  if (!r.ok) throw await failure(r);
   return r.json() as Promise<T>;
 }
 
@@ -256,22 +269,16 @@ export const api = {
 
   /** Загрузка вложения: raw bytes, имя и command_id в query. */
   upload: async (id: string, file: File): Promise<Part & { attachment_id: string; name: string }> => {
+    const conn = connection().conn;
     const q = `filename=${encodeURIComponent(file.name)}&command_id=${uuid()}`;
-    const r = await fetch(`/api/v1/sessions/${id}/attachments?${q}`, {
+    // Заголовок авторизации тот же, что у остальных запросов: raw-байты идут
+    // отдельным `fetch`, потому что `j` ставит JSON Content-Type.
+    const r = await fetch(apiUrl(`/v1/sessions/${id}/attachments?${q}`, conn), {
       method: "POST",
-      headers: { "Content-Type": "application/octet-stream" },
+      headers: { "Content-Type": "application/octet-stream", ...authHeaders(conn) },
       body: file,
     });
-    if (!r.ok) {
-      let detail = `${r.status} ${r.statusText}`;
-      try {
-        const b = await r.json();
-        if (b?.error?.message) detail = `${b.error.code}: ${b.error.message}`;
-      } catch {
-        /* тело не JSON — оставляем статус */
-      }
-      throw new Error(detail);
-    }
+    if (!r.ok) throw await failure(r);
     const a = (await r.json()) as {
       attachment_id: string;
       name: string;
@@ -282,6 +289,19 @@ export const api = {
     return { ...a, kind: a.mime.split("/")[0] };
   },
 
+  /**
+   * Дашборд тикетов и ревью. Ядро, как и у `/v1/sessions`, отдаёт результат
+   * объектом-обёрткой (`{tickets: [...]}`), а не голым массивом: в будущем туда
+   * можно добавить пагинацию, не ломая контракт. Сортировка — ядровая, по mtime
+   * убыв; клиент её не пересортировывает.
+   */
+  tickets: async () => (await j<{ tickets: Ticket[] }>("/v1/tickets")).tickets,
+
+  /** Полное тело тикета: markdown, read-only. */
+  ticket: (name: string) => j<TicketBody>(`/v1/tickets/${encodeURIComponent(name)}`),
+
+  reviews: async () => (await j<{ reviews: Review[] }>("/v1/reviews")).reviews,
+
   approve: (id: string, aid: string, allow: boolean) =>
     j<unknown>(`/v1/sessions/${id}/approvals/${aid}`, {
       method: "POST",
@@ -289,14 +309,24 @@ export const api = {
     }),
 };
 
-/** SSE-поток событий сессии; EventSource сам переподключается. */
+/**
+ * SSE-поток событий сессии; EventSource сам переподключается.
+ *
+ * `EventSource` не умеет заголовков, и заменять его на fetch+ReadableStream
+ * ради `Authorization` нельзя: пропадёт авто-переподключение с `after=`, и
+ * лента будет молча умирать на любом разрыве (мобильная сеть, спящий ноут).
+ * Поэтому при прямом подключении токен едет в query — `?token=` (ядро
+ * принимает его только на потоковых GET, см. `lib/connection.ts`).
+ */
 export function subscribe(
   id: string,
   after: number,
   onEvent: (e: SurfaceEvent) => void,
   onError?: (e: Event) => void,
 ): () => void {
-  const es = new EventSource(`/api/v1/sessions/${id}/events?after=${after}`);
+  const es = new EventSource(
+    queryAuthUrl(`/v1/sessions/${id}/events?after=${after}`, connection().conn),
+  );
   es.onmessage = (m) => {
     try {
       onEvent(JSON.parse(m.data) as SurfaceEvent);
@@ -317,7 +347,7 @@ export function subscribeSessions(
   onSession: (s: SessionInfo) => void,
   onError?: (e: Event) => void,
 ): () => void {
-  const es = new EventSource("/api/v1/events");
+  const es = new EventSource(queryAuthUrl("/v1/events", connection().conn));
   es.onmessage = (m) => {
     try {
       const e = JSON.parse(m.data) as { type: string; session: SessionInfo };

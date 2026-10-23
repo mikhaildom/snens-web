@@ -1,4 +1,5 @@
 /** Мелкие форматтеры подписей. */
+import { apiUrl, connection } from "./connection.ts";
 
 /** «1 шаг / 2 шага / 5 шагов». */
 export function stepsWord(n: number): string {
@@ -26,6 +27,11 @@ export function shortArgs(raw: string): string {
   }
 }
 
-/** Ссылка на файл сессии: картинки, видео, голосовые идут через вложение. */
+/**
+ * Ссылка на файл сессии: картинки, видео, голосовые идут через вложение.
+ * В режиме proxy — относительный `/api`, при прямом подключении — абсолютный
+ * адрес ядра; токен в URL тут не ставится, его добавляет `hooks/useFileSrc`
+ * заголовком (браузерные теги заголовков не умеют).
+ */
 export const fileUrl = (session: string, path: string) =>
-  `/api/v1/sessions/${session}/file?path=${encodeURIComponent(path)}`;
+  apiUrl(`/v1/sessions/${session}/file?path=${encodeURIComponent(path)}`, connection().conn);

@@ -68,7 +68,9 @@ test("сеть не дошла — говорим про связь и адре�
   }) as typeof fetch;
   const out = await claim({ baseUrl: "http://h:7461", code: "1", name: "x" });
   assert.equal(out.ok, false);
-  assert.match(out.ok === false ? out.error : "", /нет связи с ядром \(http:\/\/h:7461\)/);
+  assert.match(out.ok === false ? out.error : "", /нет связи с ядром[^(]*\(http:\/\/h:7461\)/);
+  // Сеть не дошла — это не только факт, но и рецепт: что человек может сделать.
+  assert.match(out.ok === false ? out.error : "", /проверь адрес/);
 });
 
 test("ввод проверяется до сети", async () => {

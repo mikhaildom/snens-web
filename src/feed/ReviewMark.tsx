@@ -8,8 +8,8 @@ import type { TranscriptMessage } from "../api";
  */
 export function ReviewMark({ m }: { m: TranscriptMessage }) {
   return (
-    <div className="review-mark" title="здесь запускалось саморевью сессии">
-      {m.content || "саморевью"}
+    <div className="review-mark" title="здесь запускалось ревью">
+      {m.content || "ревью"}
     </div>
   );
 }

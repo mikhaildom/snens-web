@@ -124,7 +124,7 @@ export function SettingsBar({
               <section className="settings__group">
                 <div className="settings__legend">
                   соединение
-                  <small>куда клиент ходит и чем подписывается</small>
+                  <small>адрес ядра и токен устройства</small>
                 </div>
                 {/* Отключение = забыть адрес и токен устройства и перезагрузиться:
                     соединение кэшировано на старте модуля, и без перезагрузки

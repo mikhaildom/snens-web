@@ -13,7 +13,7 @@ export function ThemeBar({ theme, setTheme }: { theme: Theme; setTheme: (t: Them
         <button
           key={key}
           aria-pressed={theme === key}
-          title={`theme: ${key === "auto" ? "по системе" : key}`}
+          title={`тема: ${key === "auto" ? "по системе" : key === "light" ? "светлая" : "тёмная"}`}
           onClick={() => setTheme(key)}
         >
           {label}

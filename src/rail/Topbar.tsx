@@ -13,7 +13,7 @@ type Props = {
   onBack: () => void;
 };
 
-/** Топбар: где мы, идёт ли ход, stop и кнопка дока. */
+/** Топбар: где мы, идёт ли ход, стоп и кнопка дока. */
 export function Topbar({
   current,
   parentTitle,
@@ -27,7 +27,7 @@ export function Topbar({
   const inChild = Boolean(current?.parent);
   return (
     <header className="topbar" data-idle={!current}>
-      <button className="ghost burger" onClick={onBurger} aria-label="sessions">
+      <button className="ghost burger" onClick={onBurger} aria-label="сессии">
         ≡
       </button>
       {inChild && (
@@ -45,11 +45,11 @@ export function Topbar({
         </button>
         <span className="chip">
           <span className="dot" style={{ background: running ? "var(--accent)" : "var(--ok)" }} />
-          {running ? "работает" : "idle"}
+          {running ? "работает" : "простой"}
         </span>
         {running && canStop && (
           <button className="chip" onClick={onStop}>
-            stop
+            стоп
           </button>
         )}
       </div>

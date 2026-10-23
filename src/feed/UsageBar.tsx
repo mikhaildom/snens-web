@@ -15,9 +15,10 @@ export function UsageBar({ u }: { u: Usage }) {
       title={[
         `вход ${u.in_tok.toLocaleString("ru-RU")}`,
         `кеш ${u.cached_tok.toLocaleString("ru-RU")}`,
-        `кеш-мисс ${miss.toLocaleString("ru-RU")}`,
+        `без кеша ${miss.toLocaleString("ru-RU")}`,
         `выход ${u.out_tok.toLocaleString("ru-RU")}`,
-        u.reason_tok > 0 ? `reasoning ${u.reason_tok.toLocaleString("ru-RU")}` : "",
+        u.reason_tok > 0 ? `рассуждение ${u.reason_tok.toLocaleString("ru-RU")}` : "",
+        `цена $${cost < 0.01 ? cost.toFixed(4) : cost.toFixed(3)}`,
       ]
         .filter(Boolean)
         .join(" · ")}
@@ -33,7 +34,6 @@ export function UsageBar({ u }: { u: Usage }) {
       <span className="usage__dim">
         {miss}/{u.out_tok}
       </span>
-      {u.reason_tok > 0 && <span className="usage__dim">r{u.reason_tok}</span>}
       <span className="usage__cost">${cost < 0.01 ? cost.toFixed(4) : cost.toFixed(3)}</span>
     </span>
   );

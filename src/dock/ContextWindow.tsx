@@ -18,7 +18,7 @@ export function ContextWindow({
       <div className="context">
         <div className="context__head">
           <b>окно</b>
-          <span>нет данных</span>
+          <span>окно ещё не посчитано — начни ход</span>
         </div>
       </div>
     );
@@ -67,9 +67,6 @@ export function ContextWindow({
           <i data-kind="free" />
           свободно {fmt(Math.max(0, limit - b.total))}
         </span>
-      </div>
-      <div className="context__foot">
-        {b.messages_count} сообщ. · {b.tool_calls_count} вызовов
       </div>
     </div>
   );

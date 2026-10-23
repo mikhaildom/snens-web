@@ -166,7 +166,8 @@ export function Composer({
           autoCorrect="off"
           autoCapitalize="off"
           lang="ru"
-          placeholder="печатай… enter — отправить, shift+enter — перенос, файлы — кнопкой + или drag&drop"
+          placeholder="задача…"
+          title="enter — отправить · shift+enter — перенос · файлы — кнопкой + или drag&drop"
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
@@ -178,7 +179,7 @@ export function Composer({
         {/* disabled, но не спрятан: кнопка на месте, чтобы раскладка не
             прыгала, а неактивность читалась сразу. */}
         <button className="solid composer__send" onClick={() => void submit()} disabled={!canSend}>
-          send
+          отправить
         </button>
       </div>
     </div>

@@ -256,7 +256,7 @@ export function parseClaim(body: unknown): ClaimReply | null {
  * Message отдаём первым по смыслу («код истёк»), код в скобках: человек читает
  * причину, а код нужен тому, кто разбирается в логах.
  */
-export function errorText(body: unknown, fallback = "ошибка"): string {
+export function errorText(body: unknown, fallback = "сбой запроса — повтори"): string {
   if (body && typeof body === "object") {
     const e = (body as { error?: { code?: unknown; message?: unknown } }).error;
     const code = typeof e?.code === "string" ? e.code : "";

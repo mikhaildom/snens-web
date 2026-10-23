@@ -72,8 +72,8 @@ export function PairScreen({ onPaired }: { onPaired?: () => void }) {
     <form className="pair" onSubmit={submit} aria-busy={busy}>
       <div className="pair__mark">snens</div>
       <p className="pair__lead">
-        Ядро на другой машине? Открой на нём приглашение — <code>snens pair</code> — и
-        введи адрес с кодом. Для локального ядра под прокси этот экран не нужен.
+        ядро на другой машине? Запусти там <code>snens pair</code> и введи адрес с
+        кодом
       </p>
 
       <label className="pair__row">
@@ -159,7 +159,7 @@ export function ConnectionBar({
         ) : (
           <>
             локальный <b>/api</b>
-            <small>адрес и токен подставляет dev-сервер (vite proxy)</small>
+            <small>адрес и токен подставляет dev-сервер</small>
           </>
         )}
       </div>
@@ -178,7 +178,7 @@ export function ConnectionBar({
           а оболочка, и вступает в силу сразу — она пересоздаёт окно. */}
       {source === "injected" && inShell() && <ShellSwitch onError={onError} />}
       {source === "injected" && !inShell() && (
-        <span className="conn__note">меняется в оболочке</span>
+        <span className="conn__note">меняется в окне приложения</span>
       )}
     </div>
   );

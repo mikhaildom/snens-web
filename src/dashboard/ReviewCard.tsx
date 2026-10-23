@@ -17,7 +17,7 @@ export function ReviewCard({ review, onOpen }: { review: Review; onOpen: (sessio
         <span className="dash__card-name">{review.session}</span>
         <span className="dash__badges">
           <span className="dash__badge" data-tone={review.status}>
-            {review.status === "ok" ? "ok" : review.status === "error" ? "ошибка" : "идёт"}
+            {review.status === "ok" ? "без замечаний" : review.status === "error" ? "ошибка" : "идёт"}
           </span>
         </span>
         <span className="dash__card-time" title={time(review.ts)}>

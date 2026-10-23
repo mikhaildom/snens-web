@@ -10,7 +10,7 @@ import { Attachments } from "./Attachments";
 export function Reasoning({ text }: { text: string }) {
   return (
     <details className="reasoning">
-      <summary>reasoning</summary>
+      <summary>рассуждение</summary>
       <div>{text}</div>
     </details>
   );
@@ -46,7 +46,6 @@ export function Step({
     <div className="step">
       <MsgHead
         who="snens"
-        meta={tools.length > 0 ? <span>{tools.length} тул.</span> : undefined}
         right={m.usage ? <UsageBar u={m.usage} /> : undefined}
         ts={m.ts}
       />

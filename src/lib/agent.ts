@@ -1,5 +1,4 @@
 import type { SessionInfo } from "../api";
-import { stepsWord } from "./format.ts";
 
 /** Состояние подагента для точки, подписи и сортировки. */
 export type AgentKind = "run" | "ok" | "err" | "idle";
@@ -31,26 +30,24 @@ export function workedMs(s: SessionInfo, now: number): number | undefined {
  * процесс или нет) и `done` (чем кончился журнал); клиент их не переизобретает.
  */
 export function agentStatus(s: SessionInfo, now: number): AgentStatus {
-  const turns = s.turns ?? 0;
-  const moves = `${turns} ${stepsWord(turns)}`;
   const worked = workedMs(s, now);
 
   if (s.state === "running") {
-    return { text: `работает · ${moves}`, kind: "run", workedMs: worked };
+    return { text: "работает", kind: "run", workedMs: worked };
   }
   if (s.state === "failed" || (s.done && s.done !== "ok")) {
     // У лимита ходов своё имя: это не поломка, а исчерпанный потолок — человеку
     // важно видеть, что работа встала по настройке, а не сломалась.
     const why = s.done === "limit" ? "лимит ходов" : s.done || s.state;
-    return { text: `остановлен · ${why} · ${moves}`, kind: "err", workedMs: worked };
+    return { text: `остановлен: ${why}`, kind: "err", workedMs: worked };
   }
   if (s.state === "interrupted") {
-    return { text: `прерван · ${moves}`, kind: "err", workedMs: worked };
+    return { text: "прерван", kind: "err", workedMs: worked };
   }
   if (s.done === "ok") {
-    return { text: `готов · ${moves}`, kind: "ok", workedMs: worked };
+    return { text: "готов", kind: "ok", workedMs: worked };
   }
-  return { text: `ждёт · ${moves}`, kind: "idle", workedMs: worked };
+  return { text: "ждёт", kind: "idle", workedMs: worked };
 }
 
 export interface AgentNode {

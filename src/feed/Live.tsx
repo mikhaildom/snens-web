@@ -6,7 +6,7 @@ import { Reasoning } from "./turns";
 import { UsageBar } from "./UsageBar";
 
 /**
- * Живой ход: те же шаги, что и в истории. Заголовок «snens · стрим» стоит один
+ * Живой ход: те же шаги, что и в истории. Заголовок «snens · печатает…» стоит один
  * раз на весь ход, а внутри — шаги с рассуждением, текстом и тулами, как их
  * потом покажет журнал. Раньше стрим был плоским списком блоков: другая
  * группировка, reasoning не свёрнут, тулы отдельными карточками — переход
@@ -17,7 +17,7 @@ export function Live({ items, session }: { items: LiveItem[]; session: string })
   if (steps.length === 0) return null;
   return (
     <article className="msg msg--assistant msg--pending">
-      <MsgHead who="snens" meta={<span>стрим</span>} />
+      <MsgHead who="snens" meta={<span>печатает…</span>} />
       <div className="msg__main">
         {steps.map((s, i) => (
           <div className="step" key={i}>

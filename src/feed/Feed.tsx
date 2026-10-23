@@ -50,7 +50,7 @@ export const Feed = memo(function Feed({
       {approval && (
         <article className="msg msg--approval">
           <header className="msg__head">
-            <span className="who">approval</span>
+            <span className="who">нужен пароль</span>
             <span>sudo</span>
           </header>
           <div className="msg__main">
@@ -67,7 +67,7 @@ export const Feed = memo(function Feed({
       {error && (
         <article className="msg msg--error">
           <header className="msg__head">
-            <span className="who">error</span>
+            <span className="who">ошибка</span>
             <button className="ghost" onClick={onDismissError}>
               ×
             </button>
@@ -79,45 +79,20 @@ export const Feed = memo(function Feed({
   );
 });
 
-/** Приветствие без сессии: сессия появится только после первого сообщения. */
-export function Hello({
-  model,
-  sessions,
-  agents,
-}: {
-  model: string;
-  sessions: number;
-  agents: number;
-}) {
+/**
+ * Приветствие без сессии: марка и модель. Больше ничего — остальное человек
+ * узнаёт из самой работы, а подсказки про клавиши живут в поле ввода.
+ */
+export function Hello({ model }: { model: string }) {
   return (
     <section className="hello">
       <h1 className="hello__mark">snens</h1>
-      <p className="hello__lead">
-        агент с инструментами: терминал, файлы, поиск, память.
-        <br />
-        напиши задачу — сессия появится сама.
-      </p>
       <dl className="hello__facts">
         <div>
           <dt>модель</dt>
           <dd>{model || "—"}</dd>
         </div>
-        <div>
-          <dt>сессий</dt>
-          <dd>{sessions}</dd>
-        </div>
-        <div>
-          <dt>подагентов</dt>
-          <dd>{agents}</dd>
-        </div>
-        <div>
-          <dt>окружение</dt>
-          <dd>~/projects</dd>
-        </div>
       </dl>
-      <p className="hello__hint">
-        enter — отправить · shift+enter — перенос · поиск по прошлым сессиям — слева
-      </p>
     </section>
   );
 }
@@ -126,7 +101,7 @@ export function Hello({
 export function EmptySession() {
   return (
     <div className="msg msg--system">
-      <div className="msg__main">сессия пуста — напиши первое сообщение.</div>
+      <div className="msg__main">тут пока пусто — напиши задачу</div>
     </div>
   );
 }

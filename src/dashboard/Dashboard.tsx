@@ -19,7 +19,7 @@ export type DashTab = "tickets" | "reviews";
 
 const SORTS: Array<{ key: SortKey; label: string }> = [
   { key: "date", label: "дата" },
-  { key: "hits", label: "hits" },
+  { key: "hits", label: "повторы" },
   { key: "weight", label: "вес" },
   { key: "name", label: "имя" },
 ];
@@ -151,7 +151,6 @@ export function Dashboard({
             ревью {reviews ? <b>{reviews.length}</b> : null}
           </button>
         </div>
-        <span className="dash__count">{tab === "tickets" ? `показано ${shown.length}` : ""}</span>
       </header>
 
       {tab === "tickets" ? (
@@ -175,7 +174,7 @@ export function Dashboard({
               </select>
             </label>
             <label className="dash__field">
-              kind
+              тип
               <select value={f.kind} onChange={(e) => patch({ kind: e.target.value })}>
                 <option value="">любой</option>
                 {kinds.map((k) => (
@@ -186,7 +185,7 @@ export function Dashboard({
               </select>
             </label>
             <label className="dash__field">
-              hits
+              повторы
               <select value={f.hits} onChange={(e) => patch({ hits: e.target.value as Filters["hits"] })}>
                 <option value="all">любые</option>
                 <option value="0">0</option>
@@ -221,7 +220,7 @@ export function Dashboard({
                   className="dash__sort"
                   aria-pressed={f.sort === s.key}
                   // Стрелка показывает, куда отсортировано: без неё нажатие
-                  // «hits» дважды выглядит как «ничего не произошло».
+                  // «повторы» дважды выглядит как «ничего не произошло».
                   onClick={() => patch(nextSort(f, s.key))}
                 >
                   {s.label}
@@ -237,7 +236,9 @@ export function Dashboard({
           {tickets === null && <p className="dash__muted">загружаю…</p>}
           {tickets !== null && shown.length === 0 && (
             <p className="dash__muted">
-              {tickets.length === 0 ? "ядро не отдало ни одного тикета" : "под фильтры ничего не подошло"}
+              {tickets.length === 0
+                ? "тикетов нет — агент заводит их сам, когда находит проблему"
+                : "под фильтры ничего не подошло — сбрось фильтры"}
             </p>
           )}
 
@@ -260,8 +261,7 @@ export function Dashboard({
           {reviews === null && <p className="dash__muted">загружаю…</p>}
           {reviews !== null && reviews.length === 0 && (
             <p className="dash__muted">
-              ревью пока не было — они появляются после хода с включённым авторевью
-              (`review_min_turns` в настройках инстанса)
+              ревью пока не было — включи его в настройках: раздел «инстанс»
             </p>
           )}
           <ul className="dash__list">

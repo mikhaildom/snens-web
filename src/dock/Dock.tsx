@@ -41,7 +41,7 @@ export function Dock({
         {tab === "windows" ? (
           children
         ) : tools.length === 0 ? (
-          <div className="dock__empty">в этой сессии тулы ещё не звались.</div>
+          <div className="dock__empty">пока ни одного вызова</div>
         ) : (
           tools.map((t) => <ToolRow key={t.callId} t={t} session={session} />)
         )}

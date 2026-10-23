@@ -74,10 +74,8 @@ export default function App() {
   const ctx = useContextWindow(active, msgs.length, running, steps);
   const { feedRef, buttonRef: toBottomRef, toBottom } = useFeedScroll([msgs, live, active]);
 
-  const turns = msgs.filter((m) => m.role !== "tool").length;
   const current = sessions.find((s) => s.id === active);
   const parent = current?.parent ? sessions.find((s) => s.id === current.parent) : undefined;
-  const roots = sessions.filter((s) => !s.parent).length;
 
   // Кнопки браузера меняют адрес — забираем из него признак дашборда, как это
   // делает `useActiveSession` для сессии.
@@ -286,11 +284,7 @@ export default function App() {
         <div className="feed" ref={feedRef} data-hidden={dashOpen}>
           {loading && <div className="msg msg--system">загрузка…</div>}
           {!loading && !active && (
-            <Hello
-              model={model}
-              sessions={roots}
-              agents={sessions.length - roots}
-            />
+            <Hello model={model} />
           )}
           {!loading && active && msgs.length === 0 && <EmptySession />}
           {active && (
@@ -324,25 +318,19 @@ export default function App() {
           onSend={send}
         />
 
-        <Statusbar
-          model={model}
-          current={current}
-          turns={turns}
-          tools={tools.length}
-          running={running}
-        />
+        <Statusbar model={model} current={current} />
       </main>
 
       <div className="grip grip--dock" title="тяни · двойной клик — сброс" {...dock.gripProps} />
 
-      <aside className="dock" aria-label="dock">
+      <aside className="dock" aria-label="док">
         {active && <ContextWindow breakdown={ctx.breakdown} limit={ctx.limit} />}
         <Dock tab={dockTab} setTab={setDockTab} tools={tools} session={active ?? ""}>
           <Agents sessions={sessions} active={active} onPick={openChild} />
         </Dock>
       </aside>
 
-      <aside className="dock dock--sheet" data-open={dockOpen} aria-label="dock">
+      <aside className="dock dock--sheet" data-open={dockOpen} aria-label="док">
         {dockOpen && (
           <>
             {active && <ContextWindow breakdown={ctx.breakdown} limit={ctx.limit} />}

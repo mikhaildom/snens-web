@@ -21,7 +21,7 @@ export function Fold({ parts, session }: { parts: FoldPart[]; session: string })
   // человеку ничего не говорит, поэтому такие пачки называем по содержимому.
   const label =
     tools.length > 0
-      ? `${tools.length} ${stepsWord(tools.length)}${msgs > 0 ? ` · ${msgs} рассужд.` : ""}`
+      ? `${tools.length} ${stepsWord(tools.length)}`
       : msgs > 0 && reports === msgs
         ? `${reports} отчёт`
         : "рассуждение";

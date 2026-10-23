@@ -55,8 +55,7 @@ export function InstanceSettings({
     <div className="inst__body" aria-busy={busy}>
       {stale ? (
         <div className="inst__hint">
-          ядро не отдаёт /v1/config — оно старше этого клиента. Настройки
-          появятся после его обновления.
+          ядро старее клиента: настроек нет. Обнови ядро и перезагрузи страницу
         </div>
       ) : !v ? (
         <div className="inst__hint">загрузка…</div>
@@ -123,15 +122,13 @@ export function InstanceSettings({
             <span>
               без лимита ходов
               <small>
-                {v.max_turns === 0
-                  ? "цикл не упирается в потолок; держат бюджет контекста и провайдер"
-                  : `сейчас ${v.max_turns} ходов на запуск`}
+                {v.max_turns === 0 ? "сейчас лимита нет" : `сейчас ${v.max_turns} ходов`}
               </small>
             </span>
           </label>
 
           <label className="inst__row">
-            <span>порог ревью, ходов</span>
+            <span>ходов до ревью</span>
             <input
               className="inst__num"
               type="number"
@@ -148,14 +145,14 @@ export function InstanceSettings({
           </label>
 
           <label className="inst__row">
-            <span>простой до ревью, с</span>
+            <span>секунд простоя до ревью</span>
             <input
               className="inst__num"
               type="number"
               min={0}
               defaultValue={v.review_idle_seconds}
               disabled={busy}
-              title="0 — авторевью выключено"
+              title="0 — ревью не запускать"
               onBlur={(e) => {
                 const n = Number(e.target.value);
                 if (
@@ -212,7 +209,7 @@ export function InstanceSettings({
               <button
                 aria-pressed={v.memory_retain}
                 disabled={busy || !v.memory_enabled}
-                title="писать ход в банк"
+                title="записывать каждый ход в память"
                 onClick={() => patch({ memory_retain: !v.memory_retain })}
               >
                 запись
@@ -229,7 +226,7 @@ export function InstanceSettings({
             />
             <span>
               сокращать вывод команд
-              <small>ANSI, длинные строки, повторы — до отправки модели</small>
+              <small>чистить вывод команд перед отправкой модели</small>
             </span>
           </label>
 
@@ -254,7 +251,7 @@ export function InstanceSettings({
           ) : null}
 
           <div className="inst__hint" title={cfg.path}>
-            {cfg.path.split("/").pop()}
+            конфиг: {cfg.path.split("/").pop()}
           </div>
         </>
       )}

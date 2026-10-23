@@ -70,7 +70,7 @@ export async function claim(input: PairInput): Promise<ClaimOutcome> {
   } catch (e) {
     // Сеть до ядра не дошла: самое частое — опечатка в адресе, порт закрыт
     // файрволом или ядро не запущено с `--allow-remote`.
-    const why = ctrl.signal.aborted ? "ядро не ответило за 15 с" : "нет связи с ядром";
+    const why = ctrl.signal.aborted ? "ядро не ответило за 15 с — проверь адрес и что ядро запущено" : "нет связи с ядром — проверь адрес и что ядро запущено";
     return { ok: false, error: `${why} (${base}): ${String(e instanceof Error ? e.message : e)}` };
   } finally {
     clearTimeout(timer);
@@ -82,6 +82,6 @@ export async function claim(input: PairInput): Promise<ClaimOutcome> {
     return { ok: false, error: errorText(body, `${r.status} ${r.statusText}`) };
   }
   const reply: ClaimReply | null = parseClaim(body);
-  if (!reply) return { ok: false, error: "ядро ответило без token/client_id" };
+  if (!reply) return { ok: false, error: "ядро ответило непонятно — обнови ядро" };
   return { ok: true, conn: { baseUrl: base, token: reply.token }, clientId: reply.clientId };
 }

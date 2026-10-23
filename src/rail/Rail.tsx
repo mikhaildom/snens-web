@@ -40,7 +40,7 @@ export const Rail = memo(function Rail(p: RailProps) {
   const roots = p.sessions.filter((s) => !s.parent);
   const searchMode = p.query.trim().length > 0;
   return (
-    <nav className="rail" data-open={p.open} aria-label="sessions">
+    <nav className="rail" data-open={p.open} aria-label="сессии">
       <div className="rail__brand">
         <span className="rail__mark">snens</span>
         <span className="rail__ver">{surfaceLabel(connection().source)}</span>
@@ -62,14 +62,14 @@ export const Rail = memo(function Rail(p: RailProps) {
       </div>
 
       <div className="rail__section">
-        <span>{searchMode ? `найдено ${p.hits.length}` : `sessions ${roots.length}`}</span>
+        <span>{searchMode ? `найдено ${p.hits.length}` : "сессии"}</span>
         <span className="rail__actions">
           {/* Дашборд рядом с «+»: это второй способ начать работу, а не
               настройка — поэтому в секции, а не в подвале. */}
           <button className="ghost rail__dash" title="тикеты и ревью" onClick={p.onDashboard}>
             ▤
           </button>
-          <button className="ghost" title="new session" onClick={p.onNew}>
+          <button className="ghost" title="новая сессия" onClick={p.onNew}>
             +
           </button>
         </span>
@@ -82,7 +82,7 @@ export const Rail = memo(function Rail(p: RailProps) {
               <button className="rail__item" aria-current={p.active === h.id} onClick={() => p.onPick(h.id)}>
                 {h.title || h.matches[0]?.snippet || "—"}
                 <small>
-                  {relTime(h.updated_at)} · {h.surface} · {h.matches.length} совпад.
+                  {relTime(h.updated_at)} · {h.surface}
                 </small>
                 {h.matches[0] && <span className="rail__hit">{h.matches[0].snippet}</span>}
               </button>
@@ -98,7 +98,7 @@ export const Rail = memo(function Rail(p: RailProps) {
                 {s.title || "новая сессия"}
                 <small>
                   {relTime(s.updated_at)} · {s.surface}
-                  {s.state !== "idle" ? ` · ${s.state}` : ""}
+                  {s.state === "running" ? " · идёт" : ""}
                 </small>
               </button>
               {p.removing === s.id ? (
@@ -152,7 +152,7 @@ export const Rail = memo(function Rail(p: RailProps) {
       )}
 
       <button className="rail__new" onClick={p.onNew}>
-        + new session
+        + новая сессия
       </button>
 
       <div className="rail__foot">

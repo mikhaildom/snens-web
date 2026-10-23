@@ -86,12 +86,12 @@ test("статус: работает / готов / лимит / прерван 
   const now = 1000;
   const running = agentStatus(s("x", { state: "running", started_at: 900, turns: 3 }), now);
   assert.equal(running.kind, "run");
-  assert.equal(running.text, "работает · 3 шага");
+  assert.equal(running.text, "работает");
   assert.equal(running.workedMs, 100_000);
 
   const ok = agentStatus(s("x", { state: "idle", done: "ok", turns: 2 }), now);
   assert.equal(ok.kind, "ok");
-  assert.equal(ok.text, "готов · 2 шага");
+  assert.equal(ok.text, "готов");
 
   // Лимит ходов — не поломка, а исчерпанный потолок: подпись об этом.
   const limit = agentStatus(s("x", { state: "failed", done: "limit", turns: 200 }), now);

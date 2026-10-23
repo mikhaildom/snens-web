@@ -119,8 +119,7 @@ export function ProviderSettings({
   if (stale) {
     return (
       <div className="inst__hint">
-        ядро не отдаёт /v1/providers — оно старше этого клиента. Профили
-        появятся после его обновления.
+        ядро старее клиента: профилей нет. Обнови ядро и перезагрузи страницу
       </div>
     );
   }
@@ -129,7 +128,7 @@ export function ProviderSettings({
   return (
     <div className="prov" aria-busy={busy}>
       <div className="inst__hint" title={v.config ?? ""}>
-        работает: {effectiveLabel(v)}
+        сейчас: {effectiveLabel(v)}
       </div>
 
       <ul className="prov__list">
@@ -268,7 +267,7 @@ export function ProviderSettings({
               className="inst__text"
               type="password"
               autoComplete="off"
-              placeholder="сохранится в .env рядом с конфигом"
+              placeholder=".env рядом с конфигом"
               onChange={(e) => setForm({ ...form, key: e.target.value })}
             />
           </label>

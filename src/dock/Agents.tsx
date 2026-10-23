@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { SessionInfo } from "../api";
 import { relTime, worked } from "../lib/time";
-import { agentStatus, agentTree, agentOwner, flatten, runningIn, type AgentNode } from "../lib/agent";
+import { agentStatus, agentTree, agentOwner, runningIn, type AgentNode } from "../lib/agent";
 
 /**
  * Подагенты: сессии с `parent`, выстроенные в дерево — подагент может запустить
@@ -29,7 +29,6 @@ export function Agents({
   const owner = agentOwner(sessions, active);
   const tree = owner ? agentTree(sessions, owner) : [];
   const running = runningIn(tree);
-  const total = flatten(tree).length;
   const current = sessions.find((s) => s.id === active);
 
   useEffect(() => {
@@ -38,24 +37,13 @@ export function Agents({
     return () => clearInterval(t);
   }, [running]);
 
-  if (!active) return <div className="dock__empty">сессия не выбрана.</div>;
-  if (tree.length === 0) {
-    return (
-      <div className="dock__empty">
-        подагентов нет.
-        <br />
-        когда агент запустит дочернюю сессию, она появится здесь и её можно будет открыть.
-      </div>
-    );
-  }
+  if (!active) return <div className="dock__empty">выбери сессию слева</div>;
+  if (tree.length === 0) return <div className="dock__empty">подагентов нет</div>;
   return (
     <div className="agents">
       <div className="agents__filter">
         <span>{current?.parent ? "рабочая группа" : "подагенты этой сессии"}</span>
-        <span className="agents__count">
-          {running > 0 ? `${running} работает · ` : ""}
-          {total}
-        </span>
+        <span className="agents__count">{running > 0 ? `${running} работает` : ""}</span>
       </div>
       {tree.map((node) => (
         <AgentRow key={node.session.id} node={node} active={active} now={now} onPick={onPick} />

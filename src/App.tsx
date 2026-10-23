@@ -33,7 +33,6 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const onError = useCallback((e: string) => setError(e), []);
   const [loading, setLoading] = useState(true);
-  const [draft, setDraft] = useState("");
   const [railOpen, setRailOpen] = useState(false);
   const [dockOpen, setDockOpen] = useState(() => new URLSearchParams(location.search).has("dock"));
   /**
@@ -182,9 +181,8 @@ export default function App() {
     ctx.reset();
   }
 
-  async function send() {
-    const text = draft.trim();
-    if (!text && pending.length === 0) return;
+  async function send(text: string): Promise<boolean> {
+    if (!text.trim() && pending.length === 0) return false;
     setError(null);
     try {
       // Сессия создаётся только когда есть что отправить: пустых сессий в
@@ -202,20 +200,20 @@ export default function App() {
         ids.push(up.attachment_id);
       }
       await api.send(id, text, ids);
-      setDraft("");
       setPending([]);
       const h = await api.history(id, showRecall);
       setMsgs(h.messages);
       reload();
+      return true;
     } catch (e) {
       setError(String(e instanceof Error ? e.message : e));
+      return false;
     }
   }
 
   /** Новая сессия: экран приветствия, а не пустая запись в журнале. */
   function newSession() {
     pick(null);
-    setDraft("");
     setPending([]);
   }
 
@@ -233,6 +231,10 @@ export default function App() {
   function attach(files: FileList | null) {
     if (!files) return;
     setPending((prev) => [...prev, ...Array.from(files).map((file) => ({ file, id: uuid() }))]);
+  }
+
+  function detach(id: string) {
+    setPending((prev) => prev.filter((x) => x.id !== id));
   }
 
   return (
@@ -315,11 +317,10 @@ export default function App() {
 
         <Composer
           hidden={dashOpen}
-          draft={draft}
-          setDraft={setDraft}
+          resetKey={active}
           pending={pending}
           onAttach={attach}
-          onDetach={(id) => setPending((prev) => prev.filter((x) => x.id !== id))}
+          onDetach={detach}
           onSend={send}
         />
 

@@ -1,3 +1,4 @@
+import { memo } from "react";
 import type { Block, LiveItem } from "../lenta";
 import type { Approval } from "../hooks/useTranscript";
 import { Fold } from "./Fold";
@@ -6,8 +7,14 @@ import { Recall } from "./Recall";
 import { ReviewMark } from "./ReviewMark";
 import { Say, UserTurn } from "./turns";
 
-/** Тело ленты: блоки истории, живой стрим, ожидание одобрения и ошибка. */
-export function Feed({
+/**
+ * Тело ленты: блоки истории, живой стрим, ожидание одобрения и ошибка.
+ *
+ * `memo` здесь не микрооптимизация: лента — самая тяжёлая часть дерева (у
+ * длинной сессии тысячи блоков), и без мемоизации она перерисовывалась на
+ * каждое изменение состояния `App` — включая ввод в композере.
+ */
+export const Feed = memo(function Feed({
   session,
   blocks,
   live,
@@ -70,7 +77,7 @@ export function Feed({
       )}
     </>
   );
-}
+});
 
 /** Приветствие без сессии: сессия появится только после первого сообщения. */
 export function Hello({

@@ -1,3 +1,4 @@
+import { memo } from "react";
 import type { SearchHit, SessionInfo } from "../api";
 import type { Settings } from "../settings";
 import type { Theme } from "../theme";
@@ -35,7 +36,7 @@ type RailProps = {
  * Бейдж рядом с маркой — не константа: в окне десктоп-оболочки «web» было бы
  * враньём (`lib/connection.ts` знает, где клиент запущен).
  */
-export function Rail(p: RailProps) {
+export const Rail = memo(function Rail(p: RailProps) {
   const roots = p.sessions.filter((s) => !s.parent);
   const searchMode = p.query.trim().length > 0;
   return (
@@ -165,4 +166,4 @@ export function Rail(p: RailProps) {
       </div>
     </nav>
   );
-}
+});

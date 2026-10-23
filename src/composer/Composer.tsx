@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { autosize, maxHeightFor } from "./autosize";
 
 export type PendingFile = { file: File; id: string };
@@ -11,8 +11,15 @@ export type PendingFile = { file: File; id: string };
 const LINE_HEIGHT = 44;
 
 /**
- * Composer: поле ввода, вложения под ним, drag&drop. Состояние черновика —
- * снаружи: отправка поднимается в App, где живёт сессия.
+ * Composer: поле ввода, вложения под ним, drag&drop.
+ *
+ * Черновик живёт ЗДЕСЬ, а не в `App`. Это не косметика: пока `draft` был
+ * состоянием `App`, каждая буква перерисовывала всё дерево — ленту на 2500
+ * записей, рельсу, док с раскладом контекста. На длинной сессии ввод отставал
+ * от нажатий на десятки-сотни миллисекунд (владелец поймал живьём). Наружу
+ * уходит только готовый текст: `onSend(text)` возвращает `true`, если его
+ * приняли, — тогда поле очищается. Не приняли (ошибка отправки) — текст
+ * остаётся на месте, иначе человек теряет написанное.
  *
  * Поле растёт по содержимому (`autosize.ts`) и упирается в долю высоты окна;
  * дальше внутри появляется скролл. Высоту пересчитываем на трёх событиях:
@@ -21,25 +28,36 @@ const LINE_HEIGHT = 44;
  * менял значение, а высоту никто не переставлял.
  */
 export function Composer({
-  draft,
-  setDraft,
   pending,
   onAttach,
   onDetach,
   onSend,
   hidden = false,
+  resetKey,
 }: {
   /** Спрятать вместе с лентой, когда открыта другая страница (дашборд). */
   hidden?: boolean;
-  draft: string;
-  setDraft: (v: string) => void;
+  /**
+   * Внешний повод очистить поле: новая сессия, выбор другой сессии. Меняется —
+   * черновик стирается. Число/строка, а не колбэк: сравнение по значению.
+   */
+  resetKey?: unknown;
+  /** Отправить. `true` — принято, поле можно очищать. */
+  onSend: (text: string) => Promise<boolean>;
   pending: PendingFile[];
   onAttach: (files: FileList | null) => void;
   onDetach: (id: string) => void;
-  onSend: () => void;
 }) {
+  const [draft, setDraft] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
   const area = useRef<HTMLTextAreaElement>(null);
+
+  // Смена сессии/новый чат — поле чистое. `useEffect`, а не внутри `onChange`:
+  // поводов много (выбор в рельсе, кнопка «+», возврат из дашборда), и
+  // дублировать вызов в каждом — гарантированно где-то забыть.
+  useEffect(() => {
+    setDraft("");
+  }, [resetKey]);
 
   /**
    * Пересчёт высоты. `height: auto` перед чтением `scrollHeight` обязателен:
@@ -75,6 +93,17 @@ export function Composer({
 
   /** Есть что отправлять: текст или хотя бы один файл. */
   const canSend = draft.trim().length > 0 || pending.length > 0;
+
+  /**
+   * Отправка. Очищаем поле только если внешний обработчик подтвердил, что
+   * текст принят: при ошибке сети человек не должен терять написанное.
+   */
+  async function submit() {
+    if (!canSend) return;
+    const text = draft;
+    const ok = await onSend(text);
+    if (ok) setDraft("");
+  }
 
   return (
     <div
@@ -142,13 +171,13 @@ export function Composer({
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
-              if (canSend) onSend();
+              if (canSend) void submit();
             }
           }}
         />
         {/* disabled, но не спрятан: кнопка на месте, чтобы раскладка не
             прыгала, а неактивность читалась сразу. */}
-        <button className="solid composer__send" onClick={onSend} disabled={!canSend}>
+        <button className="solid composer__send" onClick={() => void submit()} disabled={!canSend}>
           send
         </button>
       </div>

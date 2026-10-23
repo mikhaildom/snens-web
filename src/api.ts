@@ -89,8 +89,7 @@ export interface TranscriptMessage {
   usage?: Usage;
 }
 
-/** Расклад рабочего окна сессии — считает ядро по проекции промпта. */
-export interface WindowBreakdown {
+/** Расклад рабочего окна сессии — считает ядро по проекции промпта. */export interface WindowBreakdown {
   total: number;
   /** Системный промпт и рамки. */
   system: number;
@@ -167,6 +166,20 @@ export interface History {
 }
 
 /**
+ * Ответ на отправку сообщения.
+ *
+ * `applied` — ход начат этим сообщением; `accepted` — сообщение легло в очередь
+ * к идущему ходу (steer) и попадёт в журнал на его границе. Разница видна
+ * человеку: во втором случае в ленте ничего не появится сразу, и без пометки
+ * «передан агенту» он решит, что отправка не прошла.
+ */
+export interface SendReply {
+  message_id: string;
+  run_id: string | null;
+  state: "applied" | "accepted";
+}
+
+/**
  * UUID для `command_id`. `crypto.randomUUID` есть только в secure context
  * (https или localhost) — по адресу вида http://100.73.69.107:5174 его нет, и
  * создание сессии падало с "crypto.randomUUID is not a function".
@@ -223,7 +236,7 @@ export const api = {
     j<History>(`/v1/sessions/${id}/history${recall ? "?recall=1" : ""}`),
 
   send: (id: string, text: string, attachmentIds: string[] = []) =>
-    j<unknown>(`/v1/sessions/${id}/messages`, {
+    j<SendReply>(`/v1/sessions/${id}/messages`, {
       method: "POST",
       body: JSON.stringify({ command_id: uuid(), text, attachment_ids: attachmentIds }),
     }),

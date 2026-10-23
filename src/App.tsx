@@ -56,13 +56,12 @@ export default function App() {
   const { sessions, setSessions, reload } = useSessions(onError);
   // Все сессии стримятся одинаково: подагент шлёт свои сигналы в эту же шину
   // (`POST /v1/sessions/{id}/ingest`), клиент не знает, где шёл процесс.
-  const childSession = Boolean(sessions.find((s) => s.id === active)?.parent);
-  const { msgs, setMsgs, live, running, runId, steps, approval, decide } = useTranscript({
-    active,
-    showRecall,
-    onError,
-  });
-  const { hits, searching } = useSearch(query, onError);
+  const { msgs, setMsgs, addQueued, live, running, runId, steps, approval, decide } =
+    useTranscript({
+      active,
+      showRecall,
+      onError,
+    });  const { hits, searching } = useSearch(query, onError);
 
   const rail = useResize("snens-rail-w", 248, 176, 420, 1);
   const dock = useResize("snens-dock-w", 360, 240, 960, -1);
@@ -197,8 +196,11 @@ export default function App() {
         const up = await api.upload(id, file.file);
         ids.push(up.attachment_id);
       }
-      await api.send(id, text, ids);
+      const reply = await api.send(id, text, ids);
       setPending([]);
+      // Сообщение попало в очередь к идущему ходу: в журнале его ещё нет, и
+      // человека надо об этом сказать — иначе он решит, что отправка не прошла.
+      if (reply.state === "accepted") addQueued(text);
       const h = await api.history(id, showRecall);
       setMsgs(h.messages);
       reload();
@@ -268,7 +270,15 @@ export default function App() {
         <Topbar
           current={current}
           parentTitle={parent?.title}
-          running={running || (childSession && current?.state === "running")}
+          /*
+           * Занятость — объединение двух источников, и оба нужны:
+           *  - `running` из SSE сессии: подписка приходит после чтения истории,
+           *    и `run.started` успевает уйти раньше — одним им топбар врал
+           *    «простой» пока ход шёл;
+           *  - `state` карточки из потока списка (`/v1/events`): это правда ядра
+           *    на момент кадра и единственное, что не теряется при переподключении.
+           */
+          running={running || current?.state === "running" || current?.state === "stopping"}
           canStop={Boolean(active && runId)}
           onStop={() => active && runId && api.stop(active, runId).catch((e) => onError(String(e)))}
           onBurger={() => setRailOpen(true)}

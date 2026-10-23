@@ -61,11 +61,20 @@ export function Step({
 
 /** Реплика человека: текст и вложения, которые он приложил. */
 export function UserTurn({ m, session }: { m: TranscriptMessage; session: string }) {
+  // Провизорная реплика: ядро её приняло в очередь, но в журнал она уедет
+  // только на границе хода. Пометка объясняет, почему агент ещё не ответил.
+  const queued = m.seq < 0;
   return (
-    <article className="msg msg--user">
+    <article className="msg msg--user" data-queued={queued || undefined}>
       <MsgHead
         who="you"
-        meta={m.source && m.source !== "surface" ? <span>{m.source}</span> : undefined}
+        meta={
+          queued ? (
+            <span>передан агенту · ход ещё идёт</span>
+          ) : m.source && m.source !== "surface" ? (
+            <span>{m.source}</span>
+          ) : undefined
+        }
         ts={m.ts}
       />
       <div className="msg__main">

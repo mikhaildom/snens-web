@@ -23,11 +23,12 @@ type Options = {
  * ни кадра. Так сброс не нужен, а значит нет и синхронного setState в эффекте.
  */
 export function useTranscript({ active, showRecall, onError }: Options) {
-  const [snap, setSnap] = useState<{ sid: string; msgs: TranscriptMessage[]; live: LiveItem[] }>({
-    sid: "",
-    msgs: [],
-    live: [],
-  });
+  const [snap, setSnap] = useState<{
+    sid: string;
+    msgs: TranscriptMessage[];
+    live: LiveItem[];
+    queued: TranscriptMessage[];
+  }>({ sid: "", msgs: [], live: [], queued: [] });
   const [apr, setApr] = useState<{ sid: string; value: Approval | null }>({ sid: "", value: null });
   const [running, setRunning] = useState(false);
   const [runId, setRunId] = useState<string | null>(null);
@@ -40,14 +41,16 @@ export function useTranscript({ active, showRecall, onError }: Options) {
     let closed = false;
     let stop: (() => void) | undefined;
     /** Правка снапшота только текущей сессии: поздний ответ прошлой отбрасываем. */
-    const patch = (f: (s: { msgs: TranscriptMessage[]; live: LiveItem[] }) => Partial<typeof s>) =>
-      setSnap((prev) => (prev.sid === sid ? { ...prev, ...f(prev) } : prev));
+    const patch = (
+      f: (s: { msgs: TranscriptMessage[]; live: LiveItem[]; queued: TranscriptMessage[] }) =>
+        Partial<{ msgs: TranscriptMessage[]; live: LiveItem[]; queued: TranscriptMessage[] }>,
+    ) => setSnap((prev) => (prev.sid === sid ? { ...prev, ...f(prev) } : prev));
 
     (async () => {
       try {
         const h = await api.history(sid, showRecall);
         if (closed) return;
-        setSnap({ sid, msgs: h.messages, live: [] });
+        setSnap({ sid, msgs: h.messages, live: [], queued: [] });
         setApr({ sid, value: null });
         // ?nostream=1 — статичный снимок истории без SSE (скриншоты, отладка)
         if (new URLSearchParams(location.search).has("nostream")) return;
@@ -58,8 +61,7 @@ export function useTranscript({ active, showRecall, onError }: Options) {
               setRunning(true);
               setRunId(e.run_id ?? null);
               patch(() => ({ live: [] }));
-              break;
-            // Шаг завершён: расход посчитан, окно контекста устарело.
+              break;            // Шаг завершён: расход посчитан, окно контекста устарело.
             case "usage":
               setSteps((n) => n + 1);
               patch((s) => ({ live: applyEvent(s.live, e) }));
@@ -96,10 +98,12 @@ export function useTranscript({ active, showRecall, onError }: Options) {
               // Канонический транскрипт — из журнала. Лента истории собирается
               // тем же правилом, что и живая (хронология по записям), поэтому
               // переход «стрим → история» больше не переставляет блоки.
+              // Провизорная реплика и пометка «передан агенту» снимаются: их
+              // место занял журнал.
               api
                 .history(sid)
                 .then((x) => {
-                  if (!closed) setSnap({ sid, msgs: x.messages, live: [] });
+                  if (!closed) setSnap({ sid, msgs: x.messages, live: [], queued: [] });
                 })
                 .catch((err) => onError(String(err instanceof Error ? err.message : err)));
               break;
@@ -128,6 +132,31 @@ export function useTranscript({ active, showRecall, onError }: Options) {
     [active],
   );
 
+  /**
+   * Показать отправленное до того, как оно попало в журнал.
+   *
+   * Ядро принимает сообщение в очередь к идущему ходу (`accepted`), и в лог оно
+   * уезжает только на границе хода — а если агент ждёт подагентов, то и через
+   * десятки минут. Без провизорной реплики человек видит пустую ленту сразу после
+   * отправки и отправляет ещё раз. Когда журнал перечитается, провизорные уйдут.
+   */
+  const addQueued = useCallback(
+    (text: string) => {
+      if (!active) return;
+      const m: TranscriptMessage = {
+        seq: -Date.now(),
+        ts: Math.floor(Date.now() / 1000),
+        role: "user",
+        content: text,
+        source: "surface",
+      };
+      setSnap((prev) =>
+        prev.sid === active ? { ...prev, queued: [...prev.queued, m] } : prev,
+      );
+    },
+    [active],
+  );
+
   const approval = apr.sid === active ? apr.value : null;
 
   const decide = useCallback(
@@ -144,9 +173,14 @@ export function useTranscript({ active, showRecall, onError }: Options) {
   );
 
   const same = snap.sid === active;
+  const pending = same ? snap.queued : [];
   return {
-    msgs: same ? snap.msgs : [],
+    // Провизорные реплики встают в конец ленты: это то, чего у агента ещё нет в
+    // журнале — и по смыслу они хронологически последние.
+    msgs: same ? [...snap.msgs, ...snap.queued] : [],
     setMsgs,
+    addQueued,
+    pending,
     live: same ? snap.live : [],
     running,
     runId,

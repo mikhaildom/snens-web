@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { autosize, maxHeightFor } from "./autosize";
+import { composerHint, enterSends, isCoarsePointer } from "./keys";
 
 export type PendingFile = { file: File; id: string };
 
@@ -51,6 +52,18 @@ export function Composer({
   const [draft, setDraft] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
   const area = useRef<HTMLTextAreaElement>(null);
+
+  // Тач-экран: Enter — перенос строки, отправка кнопкой (правило в `keys.ts`).
+  // Инстанс может переехать с телефона на десктоп в той же вкладке (поворот,
+  // отключённая мышь), поэтому не только начальное значение, но и подписка.
+  const [coarse, setCoarse] = useState(isCoarsePointer);
+  useEffect(() => {
+    if (typeof window.matchMedia !== "function") return;
+    const mq = window.matchMedia("(any-pointer: coarse)");
+    const sync = () => setCoarse(mq.matches);
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
 
   // Смена сессии/новый чат — поле чистое. `useEffect`, а не внутри `onChange`:
   // поводов много (выбор в рельсе, кнопка «+», возврат из дашборда), и
@@ -167,10 +180,13 @@ export function Composer({
           autoCapitalize="off"
           lang="ru"
           placeholder="задача…"
-          title="enter — отправить · shift+enter — перенос · файлы — кнопкой + или drag&drop"
+          title={composerHint(coarse)}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
+            // `isComposing` и keyCode 229 — IME: Enter подтверждает композицию,
+            // и отправлять сообщение на середине слова нельзя.
+            const composing = e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229;
+            if (enterSends({ key: e.key, shiftKey: e.shiftKey, isComposing: composing }, coarse)) {
               e.preventDefault();
               if (canSend) void submit();
             }

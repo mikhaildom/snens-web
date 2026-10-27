@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { api, uuid, type SessionInfo } from "./api";
+import { api, uuid, type AskRef, type SessionInfo } from "./api";
 import { connection, surfaceLabel } from "./lib/connection";
 import { buildBlocks, collectTools } from "./lenta";
 import { applyTheme, initialTheme, type Theme } from "./theme";
@@ -20,6 +20,8 @@ import { Agents } from "./dock/Agents";
 import { ContextWindow } from "./dock/ContextWindow";
 import { Dock, type DockTab } from "./dock/Dock";
 import { Dashboard } from "./dashboard/Dashboard";
+import type { Artifact } from "./lib/artifact";
+import type { ArtifactAnswer } from "./feed/Artifact";
 
 /** Приложение: состояние сессии и раскладка, вся разметка — в компонентах. */
 export default function App() {
@@ -65,6 +67,20 @@ export default function App() {
 
   const rail = useResize("snens-rail-w", 248, 176, 420, 1);
   const dock = useResize("snens-dock-w", 360, 240, 960, -1);
+
+  /**
+   * Ключи уже отвеченных вопросов: `seq:artifact:id`. Строится из журнала, а не
+   * из состояния интерфейса, поэтому переживает перезагрузку окна и второй
+   * клиент: ядро всё равно ответит `409`, а лента не должна предлагать выбирать
+   * заново.
+   */
+  const answered = useMemo(() => {
+    const out = new Set<string>();
+    for (const m of msgs) {
+      if (m.ask) out.add(`${m.ask.seq}:${m.ask.artifact}:${m.ask.id}`);
+    }
+    return out;
+  }, [msgs]);
 
   /** Тулы журнала, перекрытые живыми: правила — в `lenta.ts`, здесь только мемо. */
   const tools = useMemo(() => collectTools(msgs, live, Boolean(active)), [active, msgs, live]);
@@ -211,6 +227,47 @@ export default function App() {
     }
   }
 
+  /**
+   * Ответ человека на вопрос артефакта (`snens.ask`).
+   *
+   * Уезжает обычным сообщением сессии с `source: "artifact"`: для ядра это
+   * такое же слово человека, как набранное руками, — и это правильно, потому
+   * что модель уже закончила ход и ждёт нового. Ссылка на артефакт едет полем
+   * `ask`: по ней ядро отвергает повтор (`409 ask_answered`), а лента рисует
+   * серую строку вместо реплики.
+   *
+   * `scope` — `seq` записи с артефактом; пусто (артефакт из стрима, ещё без
+   * записи в журнале) — отвечать рано, и такого вопроса в ленте не бывает:
+   * живой ход не принимает ответы артефактов до своего завершения.
+   */
+  async function answer(art: Artifact, ans: ArtifactAnswer, scope: string): Promise<boolean> {
+    if (!active || !scope) return false;
+    const seq = Number(scope);
+    if (!Number.isFinite(seq) || seq <= 0) return false;
+    const ref: AskRef = {
+      seq,
+      artifact: art.id,
+      id: ans.id,
+      question: ans.question,
+    };
+    try {
+      const reply = await api.send(active, ans.value, [], ref);
+      // `accepted` — ответ лёг в очередь к идущему ходу: в журнале его ещё нет,
+      // и провизорной реплики тоже не будет (она была бы оранжевой репликой
+      // человека, а тут серая строка). Историю всё равно перечитываем: когда
+      // ход закончится, ответ появится сам.
+      if (reply.state !== "accepted") {
+        const h = await api.history(active, showRecall);
+        setMsgs(h.messages);
+      }
+      reload();
+      return true;
+    } catch (e) {
+      setError(String(e instanceof Error ? e.message : e));
+      return false;
+    }
+  }
+
   /** Новая сессия: экран приветствия, а не пустая запись в журнале. */
   function newSession() {
     pick(null);
@@ -306,6 +363,8 @@ export default function App() {
               onDecide={decide}
               error={error}
               onDismissError={() => setError(null)}
+              onAnswer={answer}
+              answered={answered}
             />
           )}
           <button

@@ -257,3 +257,43 @@ test("расход промежуточного шага не пропадает
   assert.ok(part && part.kind === "msg");
   assert.deepEqual(part.m.usage, usage);
 });
+
+/**
+ * Ответ на вопрос артефакта — серая строка, а не реплика человека: он не писал
+ * текст, он ткнул вариант в интерфейсе модели. Полноценной репликой это
+ * засоряло бы историю машиной разметкой и путало с голосом человека.
+ */
+test("ответ артефакта не превращается в реплику человека", () => {
+  const blocks = buildBlocks(
+    [
+      msg(1, {
+        content: "```artifact id=quiz\n<b>1</b>\n```",
+      }),
+      {
+        seq: 2,
+        ts: 0,
+        role: "user",
+        content: "2",
+        source: "artifact",
+        ask: { seq: 1, artifact: "quiz", id: "q1", question: "какой вариант?" },
+      },
+      msg(3, { content: "принял" }),
+    ],
+    [],
+  );
+  const kinds = blocks.map((b) => b.kind);
+  assert.deepEqual(kinds, ["say", "answer", "say"], `расклад: ${kinds.join(",")}`);
+  const answer = blocks[1];
+  assert.equal(answer.kind === "answer" && answer.m.ask?.artifact, "quiz");
+});
+
+test("ключ одноразовости собирается из seq, артефакта и вопроса", () => {
+  const m: TranscriptMessage = {
+    seq: 5,
+    ts: 0,
+    role: "user",
+    content: "1",
+    ask: { seq: 3, artifact: "poll", id: "q2", question: "?" },
+  };
+  assert.equal(`${m.ask!.seq}:${m.ask!.artifact}:${m.ask!.id}`, "3:poll:q2");
+});

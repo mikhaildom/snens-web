@@ -43,6 +43,18 @@ export interface Part {
   height?: number;
 }
 
+/** Ссылка на вопрос артефакта, на который отвечает человек. */
+export interface AskRef {
+  /** `seq` записи `assistant` с артефактом — он же `seq` в истории. */
+  seq: number;
+  /** Имя артефакта из заголовка фенса (`id=…`). */
+  artifact: string;
+  /** Имя вопроса внутри артефакта (`snens.ask({id})`). */
+  id: string;
+  /** Текст вопроса: нужен человеку в раскрытой строке ответа. */
+  question: string;
+}
+
 export interface ToolCall {
   id: string;
   type: string;
@@ -87,6 +99,8 @@ export interface TranscriptMessage {
   from?: string;
   /** Расход хода (только у assistant). */
   usage?: Usage;
+  /** Ответ на вопрос артефакта: лента рисует его серой строкой, а не репликой. */
+  ask?: AskRef;
 }
 
 /** Расклад рабочего окна сессии — считает ядро по проекции промпта. */export interface WindowBreakdown {
@@ -222,6 +236,13 @@ async function j<T>(path: string, init?: RequestInit): Promise<T> {
   return r.json() as Promise<T>;
 }
 
+/** Библиотека генеративного UI инстанса: `lib.js` и компоненты, всегда свежие. */
+export interface GenuiLibrary {
+  /** Отпечаток содержимого: клиент кэширует по нему, `lib=<hash>` в фенсе — на будущее. */
+  hash: string;
+  files: Array<{ name: string; source: string }>;
+}
+
 export const api = {
   sessions: () => j<{ sessions: SessionInfo[] }>("/v1/sessions"),
 
@@ -235,10 +256,19 @@ export const api = {
   history: (id: string, recall = false) =>
     j<History>(`/v1/sessions/${id}/history${recall ? "?recall=1" : ""}`),
 
-  send: (id: string, text: string, attachmentIds: string[] = []) =>
+  /**
+   * Отправить сообщение. `ask` — ответ человека на вопрос артефакта: ядро
+   * проверит одноразовость (`409 ask_answered`) и запишет ссылку в журнал.
+   */
+  send: (id: string, text: string, attachmentIds: string[] = [], ask?: AskRef) =>
     j<SendReply>(`/v1/sessions/${id}/messages`, {
       method: "POST",
-      body: JSON.stringify({ command_id: uuid(), text, attachment_ids: attachmentIds }),
+      body: JSON.stringify({
+        command_id: uuid(),
+        text,
+        attachment_ids: attachmentIds,
+        ...(ask ? { ask } : {}),
+      }),
     }),
 
   stop: (id: string, runId: string) =>
@@ -246,6 +276,9 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ command_id: uuid(), run_id: runId }),
     }),
+
+  /** Библиотека компонентов генеративного UI (`~/.local/share/snens/genui`). */
+  genui: () => j<GenuiLibrary>("/v1/genui"),
 
   model: () => j<{ model: string }>("/v1/model"),
 

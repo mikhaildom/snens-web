@@ -1,0 +1,209 @@
+/* артефакт: интерфейс модели в ленте */
+
+/* ── артефакт ──────────────────────────────────────────── */
+
+.artifact {
+  --rule: var(--hair);
+  margin: calc(var(--step) * 0.75) 0;
+  border: var(--bar) solid var(--line);
+  background: var(--paper-2);
+  display: block;
+}
+
+/* Черновик стрима: модель ещё печатает тело. Пунктир отличает его от готового
+   артефакта, а приглушённая рамка — от реплики. */
+.artifact[data-draft] {
+  border-style: dashed;
+  border-color: var(--hair);
+}
+
+.artifact__head {
+  display: flex;
+  align-items: baseline;
+  gap: calc(var(--step) * 0.5);
+  padding: 2px calc(var(--step) * 0.5);
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-2);
+  border-bottom: 1px solid var(--hair);
+}
+
+.artifact__mark {
+  color: var(--accent);
+}
+
+.artifact[data-draft] .artifact__mark {
+  animation: artifact-pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes artifact-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+
+.artifact__name {
+  color: var(--ink);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.artifact__meta {
+  white-space: nowrap;
+}
+
+.artifact__right {
+  margin-left: auto;
+  display: flex;
+  align-items: baseline;
+  gap: calc(var(--step) * 0.75);
+}
+
+.artifact__net {
+  color: var(--ink-2);
+  text-transform: none;
+  letter-spacing: 0;
+  max-width: 40ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.artifact__size {
+  font-size: var(--fs-xs);
+  padding: 0 2px;
+  line-height: 1;
+}
+
+.artifact__body {
+  background: var(--paper);
+  overflow: hidden;
+}
+
+.artifact__frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  /* Песочница не даёт документу своих стилей — фон задаёт обёртка. */
+  background: transparent;
+}
+
+.artifact__empty {
+  padding: calc(var(--step) * 1.5);
+  color: var(--ink-2);
+  font-size: var(--fs-xs);
+}
+
+/* Подписи вопросов документа: их приносит сам iframe, поэтому вне его. */
+.artifact__asks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(var(--step) * 0.75);
+  padding: 2px calc(var(--step) * 0.5);
+  border-top: 1px solid var(--hair);
+  font-size: var(--fs-xs);
+  color: var(--ink-2);
+}
+
+.artifact__ask[data-answered] {
+  color: var(--ok);
+}
+
+/*
+ * Разворот — атрибутом на обёртке, а не порталом: перенос iframe в другого
+ * родителя = новый DOM-узел = перемонтирование = потерянное состояние
+ * документа (выбранные ответы, прокрутка, введённый текст). Здесь меняется
+ * только CSS, документ внутри живёт дальше.
+ */
+.artifact[data-expanded] {
+  position: fixed;
+  inset: calc(var(--step) * 2);
+  z-index: 40;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--shadow);
+}
+
+.artifact[data-expanded] .artifact__body {
+  flex: 1;
+  min-height: 0;
+  /* Высота в развороте — по месту, а не по подсказке модели. */
+  height: auto !important;
+}
+
+/* Ответ на вопрос артефакта: серая строка, не реплика человека. */
+.answer {
+  --rule: var(--hair);
+  border-left: var(--bar) solid var(--rule);
+  padding-left: calc(var(--step) * 1.25);
+  width: 100%;
+  font-size: var(--fs-xs);
+  color: var(--ink-2);
+}
+
+.answer > summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: baseline;
+  gap: calc(var(--step) * 0.5);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.answer > summary::-webkit-details-marker {
+  display: none;
+}
+
+.answer__mark {
+  color: var(--accent);
+}
+
+.answer__peek {
+  color: var(--ink-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 70ch;
+}
+
+.answer__body {
+  margin-top: calc(var(--step) * 0.5);
+  padding-left: calc(var(--step) * 0.75);
+  border-left: 1px solid var(--hair);
+  font-size: var(--fs-xs);
+}
+
+.answer__row {
+  display: grid;
+  grid-template-columns: 12ch 1fr;
+  gap: calc(var(--step) * 0.5);
+}
+
+.answer__row > span:first-child {
+  color: var(--ink-2);
+}
+
+.answer__body .code {
+  margin: calc(var(--step) * 0.5) 0 0;
+  white-space: pre-wrap;
+}
+
+.answer__hint {
+  margin: calc(var(--step) * 0.25) 0 0;
+  color: var(--ink-2);
+}
+
+/* Артефакты и текст вперемешку: тот же ритм, что у обычного ответа. Обёртка
+   не `display: contents`, иначе правило `max-width` у `.msg__main > .markdown`
+   перестало бы доходить до кусков текста. */
+.md-segments {
+  display: flex;
+  flex-direction: column;
+}
+
+.md-segments > .markdown {
+  max-width: 92ch;
+}

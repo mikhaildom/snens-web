@@ -1,11 +1,12 @@
 import { memo } from "react";
 import type { Block, LiveItem } from "../lenta";
 import type { Approval } from "../hooks/useTranscript";
+import { AnswerMark } from "./AnswerMark";
 import { Fold } from "./Fold";
 import { Live } from "./Live";
 import { Recall } from "./Recall";
 import { ReviewMark } from "./ReviewMark";
-import { Say, UserTurn } from "./turns";
+import { Say, UserTurn, type ArtifactHooks } from "./turns";
 
 /**
  * Тело ленты: блоки истории, живой стрим, ожидание одобрения и ошибка.
@@ -13,6 +14,9 @@ import { Say, UserTurn } from "./turns";
  * `memo` здесь не микрооптимизация: лента — самая тяжёлая часть дерева (у
  * длинной сессии тысячи блоков), и без мемоизации она перерисовывалась на
  * каждое изменение состояния `App` — включая ввод в композере.
+ *
+ * `scope` у каждого блока — это `seq` записи журнала: по нему ответ человека на
+ * вопрос артефакта привязывается к тому самому артефакту (одноразовость).
  */
 export const Feed = memo(function Feed({
   session,
@@ -22,6 +26,9 @@ export const Feed = memo(function Feed({
   onDecide,
   error,
   onDismissError,
+  onAsk,
+  onAnswer,
+  answered,
 }: {
   session: string;
   blocks: Block[];
@@ -30,23 +37,36 @@ export const Feed = memo(function Feed({
   onDecide: (allow: boolean) => void;
   error: string | null;
   onDismissError: () => void;
+  onAsk?: ArtifactHooks["onAsk"];
+  onAnswer?: ArtifactHooks["onAnswer"];
+  /** Ключи `seq:artifact:id` уже отвеченных вопросов: повторно не спрашиваем. */
+  answered?: ReadonlySet<string>;
 }) {
+  const hooks = (seq: number): ArtifactHooks => ({
+    session,
+    scope: seq > 0 ? String(seq) : "",
+    onAsk,
+    onAnswer,
+    answered,
+  });
   return (
     <>
       {blocks.map((b, i) =>
         b.kind === "user" ? (
-          <UserTurn key={`u${i}`} m={b.m} session={session} />
+          <UserTurn key={`u${i}`} m={b.m} hooks={hooks(b.m.seq)} />
+        ) : b.kind === "answer" ? (
+          <AnswerMark key={`a${i}`} m={b.m} />
         ) : b.kind === "say" ? (
-          <Say key={`s${i}`} m={b.m} />
+          <Say key={`s${i}`} m={b.m} hooks={hooks(b.m.seq)} />
         ) : b.kind === "recall" ? (
           <Recall key={`r${i}`} m={b.m} />
         ) : b.kind === "review" ? (
           <ReviewMark key={`v${i}`} m={b.m} />
         ) : (
-          <Fold key={`f${i}`} parts={b.parts} session={session} />
+          <Fold key={`f${i}`} parts={b.parts} hooks={hooks(0)} />
         ),
       )}
-      <Live items={live} session={session} />
+      <Live items={live} hooks={{ session, scope: "", onAsk, onAnswer, answered }} />
       {approval && (
         <article className="msg msg--approval">
           <header className="msg__head">
@@ -68,7 +88,7 @@ export const Feed = memo(function Feed({
         <article className="msg msg--error">
           <header className="msg__head">
             <span className="who">ошибка</span>
-            <button className="ghost" onClick={onDismissError}>
+            <button className="ghost" onClick={() => onDismissError()}>
               ×
             </button>
           </header>

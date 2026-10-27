@@ -180,6 +180,8 @@ export type FoldPart =
 
 export type Block =
   | { kind: "user"; m: TranscriptMessage }
+  /** Ответ человека на вопрос артефакта: серая строка, а не реплика. */
+  | { kind: "answer"; m: TranscriptMessage }
   | { kind: "say"; m: TranscriptMessage }
   | { kind: "fold"; parts: FoldPart[] }
   /** Справка долгой памяти перед ходом, который её получил (по галочке в настройках). */
@@ -297,6 +299,15 @@ export function buildBlocks(msgs: TranscriptMessage[], tools: ToolRun[]): Block[
       continue;
     }
     if (m.role === "user") {
+      // Ответ на вопрос артефакта: человек не писал текст, он ткнул вариант в
+      // интерфейсе, который нарисовала модель. Полноценной репликой это
+      // засоряло бы историю машиной разметкой, поэтому — отдельный блок, тонкая
+      // серая строка с раскрытием «что уехало».
+      if (m.ask) {
+        flushFold();
+        out.push({ kind: "answer", m });
+        continue;
+      }
       // Вставка в ход от подагента (`report`/`ask`) — часть работы, а не реплика
       // человека: уезжает в текущую пачку. Сообщение самого человека и его же
       // steer (`via: "steer"`) остаются репликами.

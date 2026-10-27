@@ -3,13 +3,13 @@ import type { FoldPart, ToolRun } from "../lenta";
 import { stepsWord } from "../lib/format";
 import { dur } from "../lib/time";
 import { ToolBlock } from "./ToolBlock";
-import { Step } from "./turns";
+import { Step, type ArtifactHooks } from "./turns";
 
 /**
  * Свёрнутая пачка: выполнение инструментов и шаги без completion-текста
  * (рассуждение, отчёты подагентов). Текст модели сюда не попадает — он виден.
  */
-export function Fold({ parts, session }: { parts: FoldPart[]; session: string }) {
+export function Fold({ parts, hooks }: { parts: FoldPart[]; hooks: ArtifactHooks }) {
   const [open, setOpen] = useState(false);
   const tools: ToolRun[] = parts.flatMap((p) => (p.kind === "tool" ? [p.t] : p.tools));
   const msgs = parts.filter((p) => p.kind === "msg").length;
@@ -36,9 +36,9 @@ export function Fold({ parts, session }: { parts: FoldPart[]; session: string })
         <div className="steps__body">
           {parts.map((p, i) =>
             p.kind === "tool" ? (
-              <ToolBlock key={`t${i}`} t={p.t} session={session} />
+              <ToolBlock key={`t${i}`} t={p.t} session={hooks.session} />
             ) : (
-              <Step key={`m${i}`} m={p.m} tools={p.tools} session={session} />
+              <Step key={`m${i}`} m={p.m} tools={p.tools} hooks={hooks} />
             ),
           )}
         </div>

@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+
 export type Theme = "auto" | "light" | "dark";
 
 const KEY = "snens-theme";
@@ -19,4 +21,22 @@ export function applyTheme(t: Theme) {
   document.documentElement.dataset.theme = t;
   // ?theme= — разовый просмотр (скриншоты, шеринг), в localStorage не оседает
   if (!param()) localStorage.setItem(KEY, t);
+}
+
+/**
+ * Тема, которая сейчас на странице. Артефакту (`iframe`) она нужна отдельно:
+ * внутри песочницы `prefers-color-scheme` свой, а ручной выбор темы до неё не
+ * доходит. Источник — атрибут на `documentElement`, а не состояние `App`:
+ * тот же признак ставит `applyTheme`, и второго источника правды нет.
+ */
+export function useTheme(): Theme {
+  const read = () => (document.documentElement.dataset.theme as Theme) || "auto";
+  const [theme, setTheme] = useState<Theme>(read);
+  useEffect(() => {
+    const el = document.documentElement;
+    const obs = new MutationObserver(() => setTheme(read()));
+    obs.observe(el, { attributes: true, attributeFilter: ["data-theme"] });
+    return () => obs.disconnect();
+  }, []);
+  return theme;
 }

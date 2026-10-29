@@ -118,3 +118,27 @@ export function splitMermaid(source: string): MermaidSegment[] {
   flush();
   return out;
 }
+
+/**
+ * Нижняя граница усадки схемы.
+ *
+ * `svg` от mermaid растянут на 100% контейнера, и на телефоне широкая диаграмма
+ * ужалась бы до нечитаемой мелочи (14 px при усадке вдвое — уже 7). Поэтому
+ * меньше `MIN_SCALE` не ужимаем: подставляем минимальную ширину, а контейнер
+ * прокручивается по горизонтали. Это честнее шести пикселей текста.
+ */
+export const MIN_SCALE = 0.75;
+
+/** Натуральная ширина схемы по `viewBox` (третье число). 0 — не разобрали. */
+export function viewBoxWidth(svg: string): number {
+  const m = /viewBox="([-\d.\s]+)"/.exec(svg);
+  if (!m) return 0;
+  const parts = m[1].trim().split(/\s+/);
+  const w = Number(parts[2]);
+  return Number.isFinite(w) && w > 0 ? w : 0;
+}
+
+/** Минимальная ширина показа: натуральная ширина, ужатая не сильнее `MIN_SCALE`. */
+export function minWidth(natural: number, minScale = MIN_SCALE): number {
+  return natural > 0 ? Math.round(natural * minScale) : 0;
+}

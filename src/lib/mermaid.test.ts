@@ -11,7 +11,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { looksLikeMermaid, splitMermaid } from "./mermaid.ts";
+import { looksLikeMermaid, minWidth, splitMermaid, viewBoxWidth } from "./mermaid.ts";
 
 test("обычный код-фенс остаётся текстом", () => {
   const src = "до\n```js\nconst a = 1;\n```\nпосле";
@@ -77,4 +77,16 @@ test("looksLikeMermaid смотрит на первую значимую стр�
   assert.equal(looksLikeMermaid("\n%% комментарий\nflowchart LR\n a-->b"), true);
   assert.equal(looksLikeMermaid("const x = 1"), false);
   assert.equal(looksLikeMermaid(""), false);
+});
+
+test("ширина viewBox берётся третьим числом", () => {
+  assert.equal(viewBoxWidth('<svg viewBox="4 4 856.5 376">'), 856.5);
+  assert.equal(viewBoxWidth('<svg viewBox="0 0 120 40">'), 120);
+  assert.equal(viewBoxWidth("<svg>"), 0);
+});
+
+test("схема не ужимается сильнее MIN_SCALE", () => {
+  // 800 * 0.75 = 600: на телефоне показываем 600 и скроллим, а не 8px шрифтом.
+  assert.equal(minWidth(800), 600);
+  assert.equal(minWidth(0), 0);
 });

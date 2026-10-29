@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { minWidth, viewBoxWidth } from "../lib/mermaid.ts";
 import { useTheme } from "../theme.ts";
 
 /**
@@ -69,7 +70,13 @@ export function MermaidDiagram({ code, open = false }: MermaidDiagramProps) {
         startOnLoad: false,
         theme: variant,
         securityLevel: "strict",
-        fontFamily: "inherit",
+        // Шрифт — точным стеком, а не `inherit`: mermaid меряет ширину текста
+        // в canvas по этой же строке, и «inherit» он не понимает. В результате
+        // метка выходит шире, чем насчитала раскладка, переносится на лишнюю
+        // строку и обрезается по высоте узла (видно как «部件: ключ +» без второй
+        // половины).
+        fontFamily: '"JetBrains Mono", ui-monospace, monospace',
+        fontSize: 14,
       });
       // Номер уникален на попытку: mermaid держит внутри временный узел по id,
       // и повтор с тем же id после ошибки иногда отдаёт пустую картинку.
@@ -127,7 +134,13 @@ export function MermaidDiagram({ code, open = false }: MermaidDiagramProps) {
       </div>
       {/* SVG приходит от mermaid: он экранирует подписи сам, html отключён
           (`securityLevel: strict`). */}
-      <div className="mermaid__body" dangerouslySetInnerHTML={{ __html: svg }} />
+      <div
+        className="mermaid__body"
+        // Прокрутка по горизонтали вместо нечитаемой усадки: ниже `MIN_SCALE`
+        // схема не сжимается (см. `lib/mermaid.ts`).
+        style={{ minWidth: minWidth(viewBoxWidth(svg)) || undefined }}
+        dangerouslySetInnerHTML={{ __html: svg }}
+      />
     </div>
   );
 }

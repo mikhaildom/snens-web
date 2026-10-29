@@ -39,9 +39,9 @@ Dev-сервер проксирует `/api` → `SNENS_API_BASE` и подст�
 | `src/api.ts` | клиент `/v1`: типы, запросы, SSE-подписка, `uuid()` с фолбэком |
 | `src/lenta.ts` | правила ленты без React: `applyEvent` (SSE → блоки), `collectTools`, `buildBlocks`; покрыто `lenta.test.ts` |
 | `src/App.tsx` | состояние сессии и раскладка, разметки почти нет |
-| `src/lib/` | чистые функции и форматтеры: `time`, `format`, `connection`, `tool`, `parts`, `context`, `shell`, `providers`, `agent` |
+| `src/lib/` | чистые функции и форматтеры: `time`, `format`, `connection`, `tool`, `parts`, `context`, `shell`, `providers`, `agent`, `mermaid` |
 | `src/hooks/` | эффекты, вынутые из `App`: активная сессия, список, транскрипт, окно контекста, поиск, вложения |
-| `src/feed/` | лента: `Feed`, `turns`, `Fold`, `ToolBlock`, media, вложения, `UsageBar` |
+| `src/feed/` | лента: `Feed`, `turns`, `Fold`, `ToolBlock`, media, вложения, `UsageBar`, `Mermaid` |
 | `src/dock/`, `src/rail/`, `src/composer/`, `src/settings/`, `src/pair/`, `src/dashboard/` | док с подагентами и контекстом, список сессий и поиск, ввод, настройки, пейринг, дашборд тикетов и ревью |
 | `src/styles/` | CSS по слоям: порядок `@import` в `index.css` = приоритет каскада |
 
@@ -67,4 +67,8 @@ Dev-сервер проксирует `/api` → `SNENS_API_BASE` и подст�
 - SSE (`EventSource`) идёт с `?token=…`, файлы сессии при прямом подключении — через
   `fetch` с заголовком и `blob:` (`src/hooks/useFileSrc.ts`).
 - Новый тип события SSE добавляется в `applyEvent` (`lenta.ts`), а не в компоненты.
+- Схемы mermaid грузятся лениво (`import()` в `feed/Mermaid.tsx`): ~1 МБ в бандле
+  основного экрана не нужен тем, кто схем не видел. Живой фенс перерисовывается
+  не чаще раза в 400 мс, а неудачный разбор недописанной схемы не стирает
+  последнюю удачную картинку.
 - Новый CSS-слой = файл в `styles/` + `@import` в нужном месте порядка.

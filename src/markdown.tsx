@@ -4,8 +4,10 @@ import katex from "katex";
 import "katex/dist/katex.min.css";
 import type { Artifact } from "./lib/artifact.ts";
 import { latestArtifacts, splitArtifacts } from "./lib/artifact.ts";
+import { splitMermaid } from "./lib/mermaid.ts";
 import { ArtifactView } from "./feed/Artifact.tsx";
 import type { ArtifactAnswer, ArtifactAsk } from "./feed/Artifact.tsx";
+import { MermaidDiagram } from "./feed/Mermaid.tsx";
 
 /**
  * Markdown-рендер для чата агента.
@@ -19,6 +21,9 @@ import type { ArtifactAnswer, ArtifactAsk } from "./feed/Artifact.tsx";
  * markdown-разбора: текст между ними рендерится как обычно, на месте фенса
  * встаёт iframe в песочнице. Один код обслуживает и историю, и стрим — иначе
  * переход «стрим → история» перерисовывал бы артефакт другим способом.
+ *
+ * Фенсы `mermaid` — там же и по той же причине (`lib/mermaid.ts`): схему
+ * рисует компонент, который умеет перерисовываться по ходу стрима.
  */
 
 const md = new MarkdownIt({
@@ -165,6 +170,28 @@ const Chunk = memo(function Chunk({ text, images }: { text: string; images: bool
 });
 
 /**
+ * Текст с схемами mermaid: markdown и диаграммы вперемешку.
+ *
+ * Мемоизация по тексту важна и здесь: пока модель печатает, меняется только
+ * последний кусок, а уже нарисованные схемы не должны даже переразбираться.
+ */
+const Pieces = memo(function Pieces({ text, images }: { text: string; images: boolean }) {
+  const segs = useMemo(() => splitMermaid(text), [text]);
+  if (segs.length === 1 && segs[0].kind === "text") return <Chunk text={text} images={images} />;
+  return (
+    <>
+      {segs.map((s, i) =>
+        s.kind === "text" ? (
+          <Chunk key={`t${i}`} text={s.text} images={images} />
+        ) : (
+          <MermaidDiagram key={`m${i}`} code={s.code} open={s.open} />
+        ),
+      )}
+    </>
+  );
+});
+
+/**
  * Текст модели: markdown и артефакты вперемешку.
  *
  * Без сессии или без фенсов — один `<div class="markdown">`, ровно как до
@@ -181,12 +208,12 @@ export function Markdown({
 }: MarkdownProps) {
   const segs = useMemo(() => latestArtifacts(splitArtifacts(text)), [text]);
   const hasArtifact = segs.some((s) => s.kind === "artifact");
-  if (!hasArtifact || !session) return <Chunk text={text} images={images} />;
+  if (!hasArtifact || !session) return <Pieces text={text} images={images} />;
   return (
     <div className="md-segments">
       {segs.map((s, i) =>
         s.kind === "text" ? (
-          <Chunk key={`t${i}`} text={s.text} images={images} />
+          <Pieces key={`t${i}`} text={s.text} images={images} />
         ) : (
           <ArtifactView
             key={`a${s.art.id}`}

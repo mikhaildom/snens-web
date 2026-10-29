@@ -1,0 +1,57 @@
+/* схема mermaid в ленте */
+
+/* ── схема ─────────────────────────────────────────────── */
+
+.mermaid {
+  margin: calc(var(--step) * 0.75) 0;
+  border: var(--bar) solid var(--line);
+  background: var(--paper-2);
+}
+
+/* Черновик стрима: модель ещё печатает тело фенса. */
+.mermaid[data-draft] {
+  border-style: dashed;
+  border-color: var(--hair);
+}
+
+.mermaid__head {
+  display: flex;
+  align-items: baseline;
+  gap: calc(var(--step) * 0.5);
+  padding: 2px calc(var(--step) * 0.5);
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-2);
+  border-bottom: 1px solid var(--hair);
+}
+
+.mermaid__mark {
+  color: var(--accent);
+}
+
+.mermaid[data-draft] .mermaid__mark {
+  animation: artifact-pulse 1.1s ease-in-out infinite;
+}
+
+.mermaid__body {
+  padding: calc(var(--step) * 0.5);
+  overflow-x: auto;
+}
+
+/* SVG от mermaid: ширина по контейнеру, высота по пропорции. */
+.mermaid__body svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+}
+
+.mermaid[data-state="error"] .mermaid__head {
+  color: var(--accent);
+}
+
+.mermaid[data-state="error"] pre.code {
+  margin: 0;
+  border: 0;
+}

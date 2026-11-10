@@ -38,6 +38,6 @@ export function enterSends(
 /** Подсказка в title поля: на мобиле про Enter врать нельзя. */
 export function composerHint(coarse: boolean): string {
   return coarse
-    ? "enter — перенос строки · отправить — кнопкой · файлы — кнопкой + или drag&drop"
-    : "enter — отправить · shift+enter — перенос · файлы — кнопкой + или drag&drop";
+    ? "Enter — перенос строки, отправка — кнопкой. Файлы — скрепкой или перетаскиванием"
+    : "Enter — отправить, Shift+Enter — перенос строки. Файлы — скрепкой или перетаскиванием";
 }

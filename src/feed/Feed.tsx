@@ -7,6 +7,8 @@ import { Live } from "./Live";
 import { Recall } from "./Recall";
 import { ReviewMark } from "./ReviewMark";
 import { Say, UserTurn, type ArtifactHooks } from "./turns";
+import { DitherLogo } from "./DitherLogo";
+import { Icon } from "../ui/icons";
 
 /**
  * Тело ленты: блоки истории, живой стрим, ожидание одобрения и ошибка.
@@ -22,25 +24,27 @@ export const Feed = memo(function Feed({
   session,
   blocks,
   live,
-  approval,
-  onDecide,
   error,
   onDismissError,
   onAsk,
   onAnswer,
   answered,
+  onFork,
 }: {
   session: string;
   blocks: Block[];
   live: LiveItem[];
-  approval: Approval | null;
-  onDecide: (allow: boolean) => void;
+  /** Подтверждение теперь над полем ввода (`ApprovalBar`); здесь не рисуется. */
+  approval?: Approval | null;
+  onDecide?: (allow: boolean) => void;
   error: string | null;
   onDismissError: () => void;
   onAsk?: ArtifactHooks["onAsk"];
   onAnswer?: ArtifactHooks["onAnswer"];
   /** Ключи `seq:artifact:id` уже отвеченных вопросов: повторно не спрашиваем. */
   answered?: ReadonlySet<string>;
+  /** Ответвить сессию от ответа с этим `seq`. */
+  onFork?: (seq: number) => Promise<void> | void;
 }) {
   const hooks = (seq: number): ArtifactHooks => ({
     session,
@@ -57,7 +61,7 @@ export const Feed = memo(function Feed({
         ) : b.kind === "answer" ? (
           <AnswerMark key={`a${i}`} m={b.m} />
         ) : b.kind === "say" ? (
-          <Say key={`s${i}`} m={b.m} hooks={hooks(b.m.seq)} />
+          <Say key={`s${i}`} m={b.m} hooks={hooks(b.m.seq)} onFork={onFork} />
         ) : b.kind === "recall" ? (
           <Recall key={`r${i}`} m={b.m} />
         ) : b.kind === "review" ? (
@@ -67,55 +71,58 @@ export const Feed = memo(function Feed({
         ),
       )}
       <Live items={live} hooks={{ session, scope: "", onAsk, onAnswer, answered }} />
-      {approval && (
-        <article className="msg msg--approval">
-          <header className="msg__head">
-            <span className="who">нужен пароль</span>
-            <span>sudo</span>
-          </header>
-          <div className="msg__main">
-            <pre className="code">{`${approval.command}\ncwd ${approval.cwd}`}</pre>
-            <div className="approval__actions">
-              <button className="solid" onClick={() => onDecide(true)}>
-                разрешить один раз
-              </button>
-              <button onClick={() => onDecide(false)}>отклонить</button>
-            </div>
-          </div>
-        </article>
-      )}
       {error && (
-        <article className="msg msg--error">
-          <header className="msg__head">
-            <span className="who">ошибка</span>
-            <button className="ghost" onClick={() => onDismissError()}>
-              ×
-            </button>
-          </header>
-          <div className="msg__main">{error}</div>
-        </article>
+        <div className="msg-err" role="alert">
+          <span>{error}</span>
+          <button className="ibtn" onClick={() => onDismissError()} aria-label="скрыть ошибку">
+            <Icon name="close" />
+          </button>
+        </div>
       )}
     </>
   );
 });
 
+/** Подтверждение sudo: стоит над полем ввода, рамкой акцента. */
+export function ApprovalBar({ approval, onDecide }: { approval: Approval; onDecide: (allow: boolean) => void }) {
+  return (
+    <div className="appr" role="group" aria-label="Подтверждение действия">
+      <div className="appr-t">
+        Нужны права администратора
+        <code>{approval.command}</code>
+        <small>{approval.cwd}</small>
+      </div>
+      <button className="gbtn" onClick={() => onDecide(false)}>
+        Отклонить
+      </button>
+      <button className="pbtn" onClick={() => onDecide(true)}>
+        Разрешить один раз
+      </button>
+    </div>
+  );
+}
+
 /**
- * Приветствие без сессии: марка, модель и одна подсказка для первого раза.
- * Всё остальное человек узнаёт из самой работы, а клавиши живут в поле ввода.
+ * Приветствие без сессии: одна карточка на живом дизере — логотип, модель и
+ * подсказка для первого раза. Клик по модели открывает её настройки.
  */
-export function Hello({ model }: { model: string }) {
+export function Hello({ model, onModel }: { model: string; onModel: () => void }) {
   return (
     <section className="hello">
-      <h1 className="hello__mark">snens</h1>
-      <dl className="hello__facts">
-        <div>
-          <dt>модель</dt>
-          <dd>{model || "—"}</dd>
+      <div className="hello-in">
+        <div className="hello-logo">
+          <DitherLogo />
         </div>
-      </dl>
-      <p className="hello__hint">
-        не знаешь, умеет ли он то, что тебе надо, — спроси его самого
-      </p>
+        <button className="modelbox" onClick={onModel} title="Сменить модель">
+          <small>Модель</small>
+          <b>{model || "не выбрана"}</b>
+          <Icon name="chevron" />
+        </button>
+        <p className="hint">
+          Не знаешь, умеет ли snens то, что тебе нужно?
+          <b>Спроси его об этом</b>
+        </p>
+      </div>
     </section>
   );
 }
@@ -124,7 +131,7 @@ export function Hello({ model }: { model: string }) {
 export function EmptySession() {
   return (
     <div className="msg msg--system">
-      <div className="msg__main">тут пока пусто — напиши задачу</div>
+      <div className="msg__main">Тут пока пусто, напиши задачу</div>
     </div>
   );
 }

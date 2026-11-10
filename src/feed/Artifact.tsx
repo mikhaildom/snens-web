@@ -237,19 +237,19 @@ export function ArtifactView({
         <span className="artifact__mark">{draft ? "◌" : "▣"}</span>
         <span className="artifact__name">{art.id}</span>
         <span className="artifact__meta">
-          {draft ? "рисует" : art.rev > 1 ? `правка ${art.rev}` : "артефакт"} · {label}
+          {draft ? "Рисует" : art.rev > 1 ? `Правка ${art.rev}` : "Артефакт"}, {label}
         </span>
         <span className="artifact__right">
           {nets.length > 0 && (
-            <span className="artifact__net" title="домены, к которым разрешена сеть">
-              сеть: {nets.join(", ")}
+            <span className="artifact__net" title="Домены, к которым разрешена сеть">
+              Сеть: {nets.join(", ")}
             </span>
           )}
           <button
             className="ghost artifact__size"
             onClick={() => setExpanded((v) => !v)}
-            title={expanded ? "свернуть" : "развернуть"}
-            aria-label={expanded ? "свернуть" : "развернуть"}
+            title={expanded ? "Свернуть" : "Развернуть"}
+            aria-label={expanded ? "Свернуть" : "Развернуть"}
           >
             {expanded ? "⤡" : "⤢"}
           </button>
@@ -260,19 +260,19 @@ export function ArtifactView({
           <iframe
             ref={frame}
             className="artifact__frame"
-            title={`артефакт ${art.id}`}
+            title={`Артефакт ${art.id}`}
             sandbox={draft ? "allow-forms" : "allow-scripts allow-forms"}
             srcDoc={doc}
           />
         ) : (
-          <div className="artifact__empty">пусто — модель ещё не написала тело</div>
+          <div className="artifact__empty">Пусто: модель ещё не написала тело</div>
         )}
       </div>
       {asks.length > 0 && (
         <div className="artifact__asks">
           {asks.map((a) => (
             <span key={a.id} className="artifact__ask" data-answered={isAnswered(a.id) || undefined}>
-              {isAnswered(a.id) ? "отвечено" : "ждёт ответа"} · {a.question || a.id}
+              {isAnswered(a.id) ? "Отвечено" : "Ждёт ответа"}: {a.question || a.id}
             </span>
           ))}
         </div>

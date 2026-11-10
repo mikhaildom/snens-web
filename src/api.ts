@@ -252,6 +252,16 @@ export const api = {
       body: JSON.stringify({ command_id: uuid(), surface }),
     }),
 
+  /**
+   * Ответвление: новая сессия с журналом источника до записи `seq` включительно
+   * (вместе с расходом этого хода и результатами его тулов). Источник не меняется.
+   */
+  fork: (id: string, seq: number) =>
+    j<SessionInfo>(`/v1/sessions/${id}/fork`, {
+      method: "POST",
+      body: JSON.stringify({ command_id: uuid(), seq }),
+    }),
+
   /** `recall: true` — включить в выдачу справку долгой памяти (галочка в настройках). */
   history: (id: string, recall = false) =>
     j<History>(`/v1/sessions/${id}/history${recall ? "?recall=1" : ""}`),

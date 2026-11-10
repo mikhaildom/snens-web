@@ -18,7 +18,7 @@ export function shortArgs(raw: string): string {
     // `command` — это `run`, `cmd` — старые логи. Без них объект целиком уезжал
     // в строку и заголовок блока был простынёй JSON вместо команды.
     const first =
-      v.command ?? v.cmd ?? v.path ?? v.url ?? v.query ?? v.args?.[0] ?? v.text ?? Object.values(v)[0];
+      v.command ?? v.cmd ?? v.path ?? v.url ?? v.query ?? (Array.isArray(v.args) ? v.args[0] : v.args) ?? v.text ?? Object.values(v)[0];
     const s = Array.isArray(first) ? first.join(" ") : oneLine(String(first ?? ""));
     return s.length > 80 ? `${s.slice(0, 80)}…` : s;
   } catch {

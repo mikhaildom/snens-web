@@ -18,7 +18,7 @@ import { forgetShellRemote, inShell, isRemote, pairShell, reloadShell } from "..
 export function PairScreen({ onPaired }: { onPaired?: () => void }) {
   const [baseUrl, setBaseUrl] = useState(() => localStorage.getItem("snens-pair-host") ?? "");
   const [code, setCode] = useState("");
-  const [name, setName] = useState("браузер");
+  const [name, setName] = useState("Браузер");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -72,12 +72,12 @@ export function PairScreen({ onPaired }: { onPaired?: () => void }) {
     <form className="pair" onSubmit={submit} aria-busy={busy}>
       <div className="pair__mark">snens</div>
       <p className="pair__lead">
-        ядро на другой машине? Запусти там <code>snens pair</code> и введи адрес с
+        Ядро на другой машине? Запусти там <code>snens pair</code> и введи адрес с
         кодом
       </p>
 
       <label className="pair__row">
-        <span>адрес ядра</span>
+        <span>Адрес ядра</span>
         <input
           value={baseUrl}
           onChange={(e) => setBaseUrl(e.target.value)}
@@ -89,7 +89,7 @@ export function PairScreen({ onPaired }: { onPaired?: () => void }) {
       </label>
 
       <label className="pair__row">
-        <span>код пейринга</span>
+        <span>Код пейринга</span>
         <input
           value={code}
           onChange={(e) => setCode(e.target.value)}
@@ -101,11 +101,11 @@ export function PairScreen({ onPaired }: { onPaired?: () => void }) {
       </label>
 
       <label className="pair__row">
-        <span>имя устройства</span>
+        <span>Имя устройства</span>
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="ноутбук"
+          placeholder="Ноутбук"
           disabled={busy}
         />
       </label>
@@ -117,7 +117,7 @@ export function PairScreen({ onPaired }: { onPaired?: () => void }) {
       )}
 
       <button className="solid pair__submit" type="submit" disabled={busy}>
-        {busy ? "подключаюсь…" : "подключиться"}
+        {busy ? "Подключаюсь…" : "Подключиться"}
       </button>
     </form>
   );
@@ -147,19 +147,19 @@ export function ConnectionBar({
       <div className="conn__where">
         {conn ? (
           <>
-            подключено к <b>{hostOf(conn)}</b>
+            Подключено к <b>{hostOf(conn)}</b>
             <small>
               {source === "injected"
                 ? isRemote()
-                  ? "чужое ядро: окно подключено пейрингом"
-                  : "своё ядро: поднято вместе с окном"
-                : "токен устройства из пейринга, живёт в этом браузере"}
+                  ? "Чужое ядро: окно подключено пейрингом"
+                  : "Своё ядро: поднято вместе с окном"
+                : "Токен устройства из пейринга, живёт в этом браузере"}
             </small>
           </>
         ) : (
           <>
-            локальный <b>/api</b>
-            <small>адрес и токен подставляет dev-сервер</small>
+            Локальный <b>/api</b>
+            <small>Адрес и токен подставляет dev-сервер</small>
           </>
         )}
       </div>
@@ -171,14 +171,14 @@ export function ConnectionBar({
             onChanged();
           }}
         >
-          отключиться
+          Отключиться
         </button>
       )}
       {/* Окно приложения: оба направления переключения. Правит не localStorage,
           а оболочка, и вступает в силу сразу — она пересоздаёт окно. */}
       {source === "injected" && inShell() && <ShellSwitch onError={onError} />}
       {source === "injected" && !inShell() && (
-        <span className="conn__note">меняется в окне приложения</span>
+        <span className="conn__note">Меняется в окне приложения</span>
       )}
     </div>
   );
@@ -206,7 +206,7 @@ function ShellSwitch({ onError }: { onError: (e: string) => void }) {
         />
         {remote && (
           <button className="conn__off" onClick={() => setPairing(false)}>
-            отмена
+            Отмена
           </button>
         )}
       </div>
@@ -217,7 +217,7 @@ function ShellSwitch({ onError }: { onError: (e: string) => void }) {
       {remote ? (
         <button
           className="conn__off"
-          title="своё ядро поднимется при следующем запуске окна"
+          title="Своё ядро поднимется при следующем запуске окна"
           onClick={async () => {
             const problem = await forgetShellRemote();
             if (problem) {
@@ -228,11 +228,11 @@ function ShellSwitch({ onError }: { onError: (e: string) => void }) {
             if (reload) onError(reload);
           }}
         >
-          вернуться к своему ядру
+          Вернуться к своему ядру
         </button>
       ) : (
         <button className="conn__off" onClick={() => setPairing(true)}>
-          подключить чужое ядро…
+          Подключить чужое ядро…
         </button>
       )}
     </div>

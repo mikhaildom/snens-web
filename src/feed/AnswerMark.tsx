@@ -20,22 +20,22 @@ export function AnswerMark({ m }: { m: TranscriptMessage }) {
     <details className="answer">
       <summary>
         <span className="answer__mark">↩</span>
-        <span className="answer__name">ответ{ask?.id ? ` · ${ask.id}` : ""}</span>
+        <span className="answer__name">Ответ{ask?.id ? `: ${ask.id}` : ""}</span>
         <span className="answer__peek">{oneLine}</span>
       </summary>
       <div className="answer__body">
         <div className="answer__row">
-          <span>артефакт</span>
+          <span>Артефакт</span>
           <span>{ask?.artifact ?? "—"}</span>
         </div>
         {ask?.question && (
           <div className="answer__row">
-            <span>вопрос</span>
+            <span>Вопрос</span>
             <span>{ask.question}</span>
           </div>
         )}
         <pre className="code">{text}</pre>
-        <p className="answer__hint">этот текст уехал модели как реплика человека</p>
+        <p className="answer__hint">Этот текст ушёл модели как реплика человека</p>
       </div>
     </details>
   );

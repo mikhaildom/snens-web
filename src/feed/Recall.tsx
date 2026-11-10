@@ -14,8 +14,8 @@ export function Recall({ m }: { m: TranscriptMessage }) {
   return (
     <details className="recall">
       <summary>
-        <span className="recall__mark">память</span>
-        <span className="recall__count">{facts > 0 ? `память · ${facts}` : "справка"}</span>
+        <span className="recall__mark">Память</span>
+        <span className="recall__count">{facts > 0 ? `фактов: ${facts}` : "справка"}</span>
         <span className="recall__peek">
           {body.split("\n")[0]?.replace(/^-\s*/, "").slice(0, 80)}
         </span>

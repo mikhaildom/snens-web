@@ -18,9 +18,14 @@ export function worked(ms?: number): string {
   return `${h}ч ${String(min % 60).padStart(2, "0")}м`;
 }
 
-/** Длительность вызова: «820ms» / «3.4s». */
-export const dur = (ms?: number) =>
-  ms == null ? "" : ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${ms}ms`;
+/** Длительность вызова: «820 мс» / «3,4 с» / «2 мин 05 с». */
+export const dur = (ms?: number) => {
+  if (ms == null) return "";
+  if (ms < 1000) return `${ms} мс`;
+  if (ms < 60_000) return `${(ms / 1000).toFixed(1).replace(".", ",")} с`;
+  const s = Math.round(ms / 1000);
+  return `${Math.floor(s / 60)} мин ${String(s % 60).padStart(2, "0")} с`;
+};
 
 /** «только что / 12 мин / 3 ч / вчера 14:07 / 21 окт». */
 export function relTime(ts?: number): string {

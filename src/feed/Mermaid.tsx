@@ -119,7 +119,7 @@ export function MermaidDiagram({ code, open = false }: MermaidDiagramProps) {
   if (failed && !svg) {
     return (
       <div className="mermaid" data-state="error">
-        <div className="mermaid__head">схема не разобрана</div>
+        <div className="mermaid__head">Схема не разобрана</div>
         <pre className="code">
           <code className="language-mermaid">{code}</code>
         </pre>
@@ -130,7 +130,7 @@ export function MermaidDiagram({ code, open = false }: MermaidDiagramProps) {
   return (
     <div className="mermaid" data-draft={open || undefined}>
       <div className="mermaid__head">
-        <span className="mermaid__mark">{open ? "рисует…" : "схема"}</span>
+        <span className="mermaid__mark">{open ? "Рисует…" : "Схема"}</span>
       </div>
       {/* SVG приходит от mermaid: он экранирует подписи сам, html отключён
           (`securityLevel: strict`). */}

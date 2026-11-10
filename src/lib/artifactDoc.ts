@@ -193,5 +193,5 @@ export function artifactSize(body: string): string {
   const n100 = lines % 100;
   const word =
     n === 1 && n100 !== 11 ? "строка" : n >= 2 && n <= 4 && (n100 < 12 || n100 > 14) ? "строки" : "строк";
-  return `${kb} · ${lines} ${word}`;
+  return `${kb}, ${lines} ${word}`;
 }

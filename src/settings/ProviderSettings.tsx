@@ -1,13 +1,12 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
+import { Icon } from "../ui/icons";
 import {
   activateBlocker,
   draftFromEdit,
   draftFromPreset,
-  effectiveLabel,
   freeName,
   isEmptyDraft,
-  keyLabel,
   removeBlocker,
   type ProviderDraft,
   type ProviderInfo,
@@ -87,7 +86,7 @@ export function ProviderSettings({
   async function save() {
     const name = form.name.trim();
     if (!name) {
-      onError("имя профиля пустое");
+      onError("Имя профиля пустое");
       return;
     }
     if (editing === "+") {
@@ -115,186 +114,138 @@ export function ProviderSettings({
   }
 
   const v = state;
+  const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
   if (stale) {
-    return (
-      <div className="inst__hint">
-        ядро старее клиента: профилей нет. Обнови ядро и перезагрузи страницу
-      </div>
-    );
+    return <p className="set-note">Ядро старее клиента, профилей в нём нет. Обнови ядро и перезагрузи страницу.</p>;
   }
-  if (!v) return <div className="inst__hint">загрузка…</div>;
+  if (!v) return <p className="set-note">Загрузка…</p>;
+
+  const fields = (p?: ProviderInfo) => (
+    <>
+      {!p && (
+        <label className="field-row">
+          <span>Название</span>
+          <input value={form.name} autoFocus onChange={(e) => setForm({ ...form, name: e.target.value })} />
+        </label>
+      )}
+      <label className="field-row">
+        <span>Адрес API</span>
+        <input
+          placeholder="https://…/v1"
+          {...(p ? { defaultValue: p.base_url } : { value: form.base_url ?? "" })}
+          onChange={(e) => setForm({ ...form, base_url: e.target.value })}
+        />
+      </label>
+      <label className="field-row">
+        <span>Модель</span>
+        <input
+          placeholder="vendor/model"
+          {...(p ? { defaultValue: p.model } : { value: form.model ?? "" })}
+          onChange={(e) => setForm({ ...form, model: e.target.value })}
+        />
+      </label>
+      <label className="field-row">
+        <span>Ключ</span>
+        <input
+          type="password"
+          autoComplete="off"
+          placeholder={p ? (p.key_set ? "Задан. Оставь пустым, чтобы не менять" : "Не задан") : "Сохранится в .env рядом с конфигом"}
+          onChange={(e) => setForm({ ...form, key: e.target.value })}
+        />
+      </label>
+      <div className="prov-acts">
+        <button className="pbtn" type="submit" disabled={busy}>
+          {p ? "Сохранить" : "Создать"}
+        </button>
+        <button className="gbtn" type="button" disabled={busy} onClick={() => setEditing(null)}>
+          Отмена
+        </button>
+      </div>
+    </>
+  );
 
   return (
-    <div className="prov" aria-busy={busy}>
-      <div className="inst__hint" title={v.config ?? ""}>
-        сейчас: {effectiveLabel(v)}
-      </div>
-
-      <ul className="prov__list">
-        {v.providers.map((p) => {
-          const canActivate = activateBlocker(p) === null;
-          const canRemove = removeBlocker(p) === null;
-          return (
-            <li
-              key={p.name}
-              className="prov__item"
-              data-active={p.active}
-              data-editing={editing === p.name}
-            >
-              <div className="prov__head">
+    <div className="provs" aria-busy={busy}>
+      {v.providers.map((p) => {
+        const blockA = activateBlocker(p);
+        const blockR = removeBlocker(p);
+        return (
+          <div key={p.name} className="prov-card" data-on={p.active}>
+            <div className="prov">
+              <button
+                className="prov-pick"
+                disabled={blockA !== null || busy}
+                title={blockA ? cap(blockA) : "Сделать активным"}
+                aria-pressed={p.active}
+                onClick={() => run(() => api.activateProvider(p.name))}
+              >
+                <span className="radio" />
+                <span>
+                  <b>{p.name}</b>
+                  <small title={p.base_url}>{p.base_url || "адрес не задан"}</small>
+                  <small>{p.model || "модель не задана"}</small>
+                </span>
+              </button>
+              <span className="prov-state">
+                {p.active ? "активен" : ""}
+                <span data-set={p.key_set}>{p.key_set ? "ключ задан" : `нет ключа: ${p.key_env}`}</span>
+              </span>
+              <span className="prov-btns">
                 <button
-                  className="prov__name"
-                  disabled={!canActivate || busy}
-                  title={activateBlocker(p) ?? "сделать активным"}
-                  aria-pressed={p.active}
-                  onClick={() => run(() => api.activateProvider(p.name))}
-                >
-                  {p.active ? "● " : "○ "}
-                  {p.name}
-                </button>
-                <button
-                  className="prov__pick"
+                  className="ibtn"
                   disabled={busy}
-                  title="изменить"
+                  title="Изменить"
+                  aria-label="Изменить профиль"
                   onClick={() => (editing === p.name ? setEditing(null) : startEdit(p))}
                 >
-                  ✎
+                  <Icon name="settings" />
                 </button>
                 <button
-                  className="prov__pick"
-                  disabled={!canRemove || busy}
-                  title={removeBlocker(p) ?? "удалить"}
+                  className="ibtn"
+                  disabled={blockR !== null || busy}
+                  title={blockR ? cap(blockR) : "Удалить"}
+                  aria-label="Удалить профиль"
                   onClick={() => run(() => api.removeProvider(p.name))}
                 >
-                  ✕
+                  <Icon name="trash" />
                 </button>
-              </div>
-              <div className="prov__meta" title={p.base_url}>
-                {p.base_url} · {p.model}
-              </div>
-              <div className="prov__meta prov__key" data-set={p.key_set}>
-                ключ: {keyLabel(p)}
-              </div>
-
-              {editing === p.name && (
-                <form
-                  className="prov__form"
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    save();
-                  }}
-                >
-                  <label className="inst__row">
-                    <span>base_url</span>
-                    <input
-                      className="inst__text"
-                      defaultValue={p.base_url}
-                      onChange={(e) => setForm({ ...form, base_url: e.target.value })}
-                    />
-                  </label>
-                  <label className="inst__row">
-                    <span>модель</span>
-                    <input
-                      className="inst__text"
-                      defaultValue={p.model}
-                      onChange={(e) => setForm({ ...form, model: e.target.value })}
-                    />
-                  </label>
-                  <label className="inst__row">
-                    <span>ключ</span>
-                    <input
-                      className="inst__text"
-                      type="password"
-                      autoComplete="off"
-                      placeholder={p.key_set ? "задан — оставь пустым" : "не задан"}
-                      onChange={(e) => setForm({ ...form, key: e.target.value })}
-                    />
-                  </label>
-                  <div className="inst__group">
-                    <button type="submit" disabled={busy}>
-                      сохранить
-                    </button>
-                    <button type="button" disabled={busy} onClick={() => setEditing(null)}>
-                      отмена
-                    </button>
-                  </div>
-                </form>
-              )}
-            </li>
-          );
-        })}
-      </ul>
+              </span>
+            </div>
+            {editing === p.name && (
+              <form
+                className="prov-form"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  save();
+                }}
+              >
+                {fields(p)}
+              </form>
+            )}
+          </div>
+        );
+      })}
 
       {editing === "+" ? (
         <form
-          className="prov__form"
+          className="prov-form prov-card"
           onSubmit={(e) => {
             e.preventDefault();
             save();
           }}
         >
-          <label className="inst__row">
-            <span>название</span>
-            <input
-              className="inst__text"
-              value={form.name}
-              autoFocus
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-            />
-          </label>
-          <label className="inst__row">
-            <span>base_url</span>
-            <input
-              className="inst__text"
-              placeholder="https://…/v1"
-              value={form.base_url ?? ""}
-              onChange={(e) => setForm({ ...form, base_url: e.target.value })}
-            />
-          </label>
-          <label className="inst__row">
-            <span>модель</span>
-            <input
-              className="inst__text"
-              placeholder="vendor/model"
-              value={form.model ?? ""}
-              onChange={(e) => setForm({ ...form, model: e.target.value })}
-            />
-          </label>
-          <label className="inst__row">
-            <span>ключ</span>
-            <input
-              className="inst__text"
-              type="password"
-              autoComplete="off"
-              placeholder=".env рядом с конфигом"
-              onChange={(e) => setForm({ ...form, key: e.target.value })}
-            />
-          </label>
-          <div className="inst__group">
-            <button type="submit" disabled={busy}>
-              создать
-            </button>
-            <button type="button" disabled={busy} onClick={() => setEditing(null)}>
-              отмена
-            </button>
-          </div>
+          {fields()}
         </form>
       ) : (
-        <div className="inst__group">
-          <button disabled={busy} onClick={() => startCreate()}>
-            + профиль
+        <div className="prov-acts">
+          <button className="gbtn" disabled={busy} onClick={() => startCreate()}>
+            Добавить провайдера
           </button>
-          {/* Пресеты — те же два, что человек заводит в первую очередь. Адрес и
-              модель подставляем, ключ — нет: чужого секрета у клиента нет. */}
+          {/* Пресеты подставляют адрес и модель, но не ключ: чужого секрета у клиента нет. */}
           {v.presets.map((preset) => (
-            <button
-              key={preset.name}
-              disabled={busy}
-              title={`${preset.base_url} · ${preset.model}`}
-              onClick={() => startCreate(preset)}
-            >
-              + {preset.name}
+            <button key={preset.name} className="gbtn" disabled={busy} title={`${preset.base_url}, ${preset.model}`} onClick={() => startCreate(preset)}>
+              Добавить {preset.name}
             </button>
           ))}
         </div>

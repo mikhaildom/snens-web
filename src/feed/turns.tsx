@@ -1,11 +1,13 @@
+import type { ReactNode } from "react";
+import { time } from "../lib/time";
 import type { TranscriptMessage } from "../api";
 import type { Artifact } from "../lib/artifact.ts";
 import { Markdown } from "../markdown";
 import type { ToolRun } from "../lenta";
 import type { ArtifactAnswer, ArtifactAsk } from "./Artifact";
-import { MsgHead } from "./Head";
+import { MsgHead, MsgFoot } from "./Head";
 import { ToolBlock } from "./ToolBlock";
-import { UsageBar } from "./UsageBar";
+import { UsageInfo } from "./UsageBar";
 import { Attachments } from "./Attachments";
 
 /** Вопрос объявлен артефактом — хост показывает подсказку под интерфейсом. */
@@ -29,10 +31,13 @@ export interface ArtifactHooks {
 }
 
 /** Reasoning свёрнут по умолчанию: в спокойном чтении он не нужен. */
-export function Reasoning({ text }: { text: string }) {
+export function Reasoning({ text, side }: { text: string; side?: ReactNode }) {
   return (
     <details className="reasoning">
-      <summary>рассуждение</summary>
+      <summary>
+        Размышления
+        {side}
+      </summary>
       <div>{text}</div>
     </details>
   );
@@ -48,19 +53,27 @@ export function Step({ m, tools, hooks }: { m: TranscriptMessage; tools: ToolRun
     return (
       <div className="step step--via">
         <MsgHead
-          who={m.via === "ask" ? "вопрос" : "отчёт"}
-          meta={<span>{m.from ? m.from.slice(0, 8) : "подагент"}</span>}
+          who={m.via === "ask" ? "Вопрос подагента" : "Отчёт подагента"}
+          meta={<span>{m.from ? m.from.slice(0, 8) : ""}</span>}
           ts={m.ts}
         />
         <div className="via__body">{m.content && <Markdown text={m.content} images={false} />}</div>
       </div>
     );
   }
+  // Цена и время шага — сбоку от его первой строки: у «Размышлений», а если их
+  // нет, отдельной строкой справа. Клик по значку не раскрывает размышления.
+  const side =
+    m.usage || m.ts ? (
+      <span className="m-side m-side--row" onClick={(e) => e.preventDefault()}>
+        {m.usage && <UsageInfo u={m.usage} />}
+        {m.ts != null && <time>{time(m.ts)}</time>}
+      </span>
+    ) : null;
   return (
     <div className="step">
-      <MsgHead who="snens" right={m.usage ? <UsageBar u={m.usage} /> : undefined} ts={m.ts} />
       {/* Хронология хода: сначала модель думает, потом пишет. */}
-      {m.reasoning && <Reasoning text={m.reasoning} />}
+      {m.reasoning ? <Reasoning text={m.reasoning} side={side} /> : side && <div className="step-meta">{side}</div>}
       {m.content && (
         <Markdown
           text={m.content}
@@ -85,17 +98,11 @@ export function UserTurn({ m, hooks }: { m: TranscriptMessage; hooks: ArtifactHo
   const queued = m.seq < 0;
   return (
     <article className="msg msg--user" data-queued={queued || undefined}>
-      <MsgHead
-        who="you"
-        meta={
-          queued ? (
-            <span>передан агенту · ход ещё идёт</span>
-          ) : m.source && m.source !== "surface" ? (
-            <span>{m.source}</span>
-          ) : undefined
-        }
-        ts={m.ts}
-      />
+      {queued ? (
+        <div className="msg__note">передано агенту, ход ещё идёт</div>
+      ) : m.source && m.source !== "surface" && m.source !== "web" ? (
+        <div className="msg__note">{m.source}</div>
+      ) : null}
       <div className="msg__main">
         {m.content && (
           <Markdown
@@ -114,10 +121,23 @@ export function UserTurn({ m, hooks }: { m: TranscriptMessage; hooks: ArtifactHo
 }
 
 /** Текст модели, показанный на виду: промежуточный completion. */
-export function Say({ m, hooks }: { m: TranscriptMessage; hooks: ArtifactHooks }) {
+export function Say({
+  m,
+  hooks,
+  onFork,
+}: {
+  m: TranscriptMessage;
+  hooks: ArtifactHooks;
+  onFork?: (seq: number) => Promise<void> | void;
+}) {
   return (
     <article className="msg msg--assistant">
-      <MsgHead who="snens" right={m.usage ? <UsageBar u={m.usage} /> : undefined} ts={m.ts} />
+      <MsgFoot
+        text={m.content}
+        right={m.usage ? <UsageInfo u={m.usage} /> : undefined}
+        ts={m.ts}
+        onFork={onFork && m.seq > 0 ? () => onFork(m.seq) : undefined}
+      />
       <div className="msg__main">
         <Markdown
           text={m.content ?? ""}

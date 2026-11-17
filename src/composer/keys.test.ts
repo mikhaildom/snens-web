@@ -37,7 +37,7 @@ test("не enter — не отправка", () => {
 });
 
 test("подсказка не врёт про способ отправки", () => {
-  assert.match(composerHint(false), /enter — отправить/);
-  assert.match(composerHint(true), /enter — перенос/);
+  assert.match(composerHint(false), /Enter — отправить/);
+  assert.match(composerHint(true), /Enter — перенос/);
   assert.match(composerHint(true), /кнопкой/);
 });

@@ -8,8 +8,8 @@ import type { TranscriptMessage } from "../api";
  */
 export function ReviewMark({ m }: { m: TranscriptMessage }) {
   return (
-    <div className="review-mark" title="здесь запускалось ревью">
-      {m.content || "ревью"}
+    <div className="review-mark" title="Здесь запускалось ревью">
+      {(m.content || "Ревью").replace(" · ", ", ").replace(/^./, (c) => c.toUpperCase())}
     </div>
   );
 }

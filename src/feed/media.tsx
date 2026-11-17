@@ -99,10 +99,10 @@ export function Lightbox({
         <span className="lightbox__name">{part.path.split("/").pop()}</span>
         <span className="lightbox__dim">
           {part.width && part.height ? `${part.width}×${part.height}` : ""}
-          {parts.length > 1 ? ` · ${index + 1}/${parts.length}` : ""}
+          {parts.length > 1 ? `, ${index + 1} из ${parts.length}` : ""}
         </span>
         <FileLink session={session} part={part} />
-        <button className="lightbox__close" onClick={onClose} aria-label="закрыть">
+        <button className="lightbox__close" onClick={onClose} aria-label="Закрыть">
           ×
         </button>
       </div>
@@ -115,7 +115,7 @@ export function Lightbox({
               e.stopPropagation();
               onIndex((index - 1 + parts.length) % parts.length);
             }}
-            aria-label="предыдущая"
+            aria-label="Предыдущая"
           >
             ‹
           </button>
@@ -125,7 +125,7 @@ export function Lightbox({
               e.stopPropagation();
               onIndex((index + 1) % parts.length);
             }}
-            aria-label="следующая"
+            aria-label="Следующая"
           >
             ›
           </button>
@@ -141,7 +141,7 @@ function Shot({ session, part, onOpen }: { session: string; part: Part; onOpen: 
     <button
       className="shot"
       onClick={onOpen}
-      title={`${part.path}${part.width ? ` · ${part.width}×${part.height}` : ""}`}
+      title={`${part.path}${part.width ? `, ${part.width}×${part.height}` : ""}`}
     >
       {src && (
         <img
@@ -199,7 +199,7 @@ function Voice({ session, part }: { session: string; part: Part }) {
     <figure className="voice">
       <audio src={src ?? undefined} controls preload="metadata" />
       <figcaption>
-        {part.kind === "audio" ? "голосовое" : part.kind} · {(part.bytes / 1024).toFixed(0)} КБ
+        {part.kind === "audio" ? "Голосовое" : part.kind}, {(part.bytes / 1024).toFixed(0)} КБ
       </figcaption>
     </figure>
   );

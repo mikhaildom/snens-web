@@ -37,13 +37,13 @@ export function Agents({
     return () => clearInterval(t);
   }, [running]);
 
-  if (!active) return <div className="dock__empty">выбери сессию слева</div>;
-  if (tree.length === 0) return <div className="dock__empty">подагентов нет</div>;
+  if (!active) return <div className="dock__empty">Выбери сессию слева</div>;
+  if (tree.length === 0) return <div className="dock__empty">В этой сессии подагентов нет</div>;
   return (
     <div className="agents">
       <div className="agents__filter">
-        <span>{current?.parent ? "рабочая группа" : "подагенты этой сессии"}</span>
-        <span className="agents__count">{running > 0 ? `${running} работает` : ""}</span>
+        <span>{current?.parent ? "Рабочая группа" : "Подагенты этой сессии"}</span>
+        <span className="agents__count">{running > 0 ? `Работают: ${running}` : ""}</span>
       </div>
       {tree.map((node) => (
         <AgentRow key={node.session.id} node={node} active={active} now={now} onPick={onPick} />
@@ -76,7 +76,7 @@ function AgentRow({
         data-depth={node.depth}
         aria-current={active === s.id}
         onClick={() => onPick(s.id)}
-        title={`${s.id} · ${s.model ?? "—"}`}
+        title={`${s.id}, ${s.model ?? "модель по умолчанию"}`}
       >
         <span className="agents__state" data-kind={st.kind} />
         <span className="agents__title">{s.title || s.id.slice(0, 8)}</span>

@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, uuid, type AskRef, type SessionInfo } from "./api";
 import { connection, surfaceLabel } from "./lib/connection";
 import { buildBlocks, collectTools } from "./lenta";
 import { applyTheme, initialTheme, type Theme } from "./theme";
-import { initialSettings, saveSettings, type Settings } from "./settings";
+import { applyLook, initialSettings, saveSettings, type Settings } from "./settings";
 import { useResize } from "./useResize";
 import { useActiveSession } from "./hooks/useActiveSession";
 import { useSessions } from "./hooks/useSessions";
@@ -12,10 +12,14 @@ import { useContextWindow } from "./hooks/useContextWindow";
 import { useSearch } from "./hooks/useSearch";
 import { useFeedScroll } from "./hooks/useFeedScroll";
 import { Rail } from "./rail/Rail";
-import { Topbar } from "./rail/Topbar";
-import { Statusbar } from "./rail/Statusbar";
 import { Composer, type PendingFile } from "./composer/Composer";
-import { EmptySession, Feed, Hello } from "./feed/Feed";
+import { SettingsPage } from "./settings/SettingsPage";
+import { DitherField } from "./feed/DitherField";
+import { WorkWave, type WaveKind } from "./feed/WorkWave";
+import { agentOwner, agentTree, type AgentNode } from "./lib/agent";
+import { argLabel } from "./lib/tool";
+import { Icon } from "./ui/icons";
+import { ApprovalBar, EmptySession, Feed, Hello } from "./feed/Feed";
 import { Agents } from "./dock/Agents";
 import { ContextWindow } from "./dock/ContextWindow";
 import { Dock, type DockTab } from "./dock/Dock";
@@ -36,7 +40,18 @@ export default function App() {
   const onError = useCallback((e: string) => setError(e), []);
   const [loading, setLoading] = useState(true);
   const [railOpen, setRailOpen] = useState(false);
-  const [dockOpen, setDockOpen] = useState(() => new URLSearchParams(location.search).has("dock"));
+  const [dockOpen, setDockOpenRaw] = useState(
+    () => new URLSearchParams(location.search).has("dock") || localStorage.getItem("snens-dock-open") === "1",
+  );
+  const setDockOpen = useCallback((v: boolean) => {
+    setDockOpenRaw(v);
+    localStorage.setItem("snens-dock-open", v ? "1" : "0");
+  }, []);
+  /** Настройки — вкладка вместо чата (`?settings`), как и дашборд. */
+  const [settingsOpen, setSettingsOpen] = useState(() => new URLSearchParams(location.search).has("settings"));
+  const [settingsPane, setSettingsPane] = useState<"view" | "models">("view");
+  const [railMini, setRailMini] = useState(() => localStorage.getItem("snens-rail-mini") === "1");
+  const [dockMin, setDockMin] = useState(240);
   /**
    * Дашборд — страница приложения (`?dash=1`), а не модалка: у него свой
    * скролл, свои фильтры и возврат к ленте. В URL — чтобы ссылка на вид
@@ -45,9 +60,10 @@ export default function App() {
   const [dashOpen, setDashOpen] = useState(() => new URLSearchParams(location.search).has("dash"));
   // `?tab=windows` открывает док сразу на подагентах: без этого скриншот дока
   // требует сначала клика, а `shot --selector` со скриптом не совмещается.
-  const [dockTab, setDockTab] = useState<DockTab>(() =>
-    new URLSearchParams(location.search).get("tab") === "windows" ? "windows" : "tools",
-  );
+  const [dockTab, setDockTab] = useState<DockTab>(() => {
+    const t = new URLSearchParams(location.search).get("tab");
+    return t === "tools" ? "tools" : t === "ctx" ? "ctx" : "agents";
+  });
   /** Файлы, приложенные к ещё не отправленному сообщению. */
   const [pending, setPending] = useState<PendingFile[]>([]);
   /** Сессия, у которой открыто подтверждение удаления. */
@@ -65,8 +81,8 @@ export default function App() {
       onError,
     });  const { hits, searching } = useSearch(query, onError);
 
-  const rail = useResize("snens-rail-w", 248, 176, 420, 1);
-  const dock = useResize("snens-dock-w", 360, 240, 960, -1);
+  const rail = useResize("snens-rail-w2", 232, 180, 420, 1);
+  const dock = useResize("snens-dock-w2", 420, 240, 960, -1);
 
   /**
    * Ключи уже отвеченных вопросов: `seq:artifact:id`. Строится из журнала, а не
@@ -90,6 +106,44 @@ export default function App() {
   const { feedRef, buttonRef: toBottomRef, toBottom } = useFeedScroll([msgs, live, active]);
 
   const current = sessions.find((s) => s.id === active);
+  const page: "chat" | "tickets" | "settings" = dashOpen ? "tickets" : settingsOpen ? "settings" : "chat";
+  // Состояние из списка сессий — правда ядра: если оно говорит «idle», ход
+  // закончен, даже когда событие конца хода до ленты не дошло (обрыв SSE).
+  const busy =
+    (running && current?.state !== "idle") || current?.state === "running" || current?.state === "stopping";
+
+  /** Подагенты открытой сессии (или её рабочей группы): число для вкладки и кнопки. */
+  const agentCount = useMemo(() => {
+    const owner = agentOwner(sessions, active);
+    if (!owner) return 0;
+    const count = (ns: AgentNode[]): number => ns.reduce((n, x) => n + 1 + count(x.children), 0);
+    return count(agentTree(sessions, owner));
+  }, [sessions, active]);
+
+  /** Вкладка тикетов забирает фокус один раз при открытии: так работает Esc. */
+  const focusPage = useCallback((el: HTMLDivElement | null) => {
+    if (el && !el.contains(document.activeElement)) el.focus({ preventScroll: true });
+  }, []);
+
+  /** Начало хода — для таймера рядом с волной. */
+  const [runSince, setRunSince] = useState(0);
+  useEffect(() => {
+    if (busy) setRunSince((v) => v || Date.now());
+    else setRunSince(0);
+  }, [busy]);
+  const lastLive = live[live.length - 1];
+  const runningTool = tools.find((t) => t.state === "running");
+  const wave: { kind: WaveKind; label: string } | null = !busy
+    ? null
+    : approval
+      ? { kind: "wait", label: "Ждёт подтверждения" }
+      : runningTool
+        ? { kind: "tool", label: `${runningTool.name} ${argLabel(runningTool)}` }
+        : lastLive?.kind === "text"
+          ? { kind: "think", label: "Пишет" }
+          : { kind: "think", label: "Думает" };
+  const ctxPct = ctx.breakdown && ctx.limit > 0 ? Math.min(100, (ctx.breakdown.total / ctx.limit) * 100) : null;
+  const fmtK = (n: number) => (n >= 1000 ? `${Math.round(n / 1000)}k` : String(n));
   const parent = current?.parent ? sessions.find((s) => s.id === current.parent) : undefined;
 
   // Кнопки браузера меняют адрес — забираем из него признак дашборда, как это
@@ -106,6 +160,7 @@ export default function App() {
 
   useEffect(() => {
     saveSettings(settings);
+    applyLook(settings);
   }, [settings]);
 
   useEffect(() => {
@@ -131,7 +186,7 @@ export default function App() {
     const surface = surfaceLabel(connection().source);
     document.title = current?.title
       ? surface === "desktop"
-        ? `${current.title} · desktop`
+        ? `${current.title}, desktop`
         : `${current.title} — snens`
       : "snens";
   }, [current?.title]);
@@ -141,7 +196,24 @@ export default function App() {
    * должен вести к ленте, а не в начало приложения. Текущая лента остаётся
    * живой под страницей: уход с неё не рвёт SSE — компонент просто скрыт.
    */
+  function openSettings(pane: "view" | "models" = "view") {
+    if (dashOpen) closeDashboard();
+    setSettingsPane(pane);
+    setSettingsOpen(true);
+    setRailOpen(false);
+  }
+  function closeSettings() {
+    setSettingsOpen(false);
+    const url = new URL(location.href);
+    if (url.searchParams.has("settings")) {
+      url.searchParams.delete("settings");
+      history.replaceState(history.state, "", url);
+    }
+  }
+
   function openDashboard() {
+    setSettingsOpen(false);
+    setRailOpen(false);
     const url = new URL(location.href);
     url.searchParams.set("dash", "1");
     history.pushState({ ...(history.state ?? {}), dash: true }, "", url);
@@ -177,6 +249,8 @@ export default function App() {
 
   /** Выбор сессии в рельсе: закрыть шторку, снять поиск. Историю не растим. */
   function pick(id: string | null) {
+    if (dashOpen) closeDashboard();
+    closeSettings();
     select(id);
     setRailOpen(false);
     setQuery("");
@@ -194,6 +268,25 @@ export default function App() {
     ctx.reset();
   }
 
+  /** Ответвить текущую сессию от ответа `seq` и сразу перейти в ответвление. */
+  async function fork(seq: number) {
+    if (!active) return;
+    setError(null);
+    try {
+      const created = await api.fork(active, seq);
+      setSessions((prev) => (prev.some((x) => x.id === created.id) ? prev : [created, ...prev]));
+      pick(created.id);
+      reload();
+    } catch (e) {
+      setError(String(e instanceof Error ? e.message : e));
+    }
+  }
+
+  // Лента под `memo`: обработчик ответвления должен быть один и тот же.
+  const forkRef = useRef(fork);
+  forkRef.current = fork;
+  const onFork = useCallback((seq: number) => forkRef.current(seq), []);
+
   async function send(text: string): Promise<boolean> {
     if (!text.trim() && pending.length === 0) return false;
     setError(null);
@@ -205,7 +298,7 @@ export default function App() {
         const created = await api.create("web");
         id = created.id;
         select(id);
-        setSessions((prev) => [created, ...prev]);
+        setSessions((prev) => (prev.some((x) => x.id === created.id) ? prev : [created, ...prev]));
       }
       const ids: string[] = [];
       for (const file of pending) {
@@ -294,10 +387,15 @@ export default function App() {
     setPending((prev) => prev.filter((x) => x.id !== id));
   }
 
+  const dockShown = dockOpen && page === "chat";
+  const dockW = Math.max(dock.size, dockMin);
   return (
     <div
       className="app"
-      style={{ "--rail-w": `${rail.size}px`, "--dock-w": `${dock.size}px` } as React.CSSProperties}
+      data-rail={railMini ? "mini" : "full"}
+      data-dock={dockShown ? "open" : "closed"}
+      data-mob={railOpen ? "open" : "closed"}
+      style={{ "--rail-w": `${rail.size}px`, "--dock-w": `${dockW}px` } as React.CSSProperties}
     >
       <Rail
         sessions={sessions}
@@ -310,111 +408,154 @@ export default function App() {
         setRemoving={setRemoving}
         onPick={pick}
         onNew={newSession}
-        onDashboard={openDashboard}
         onRemove={removeSession}
         onClose={() => setRailOpen(false)}
-        theme={theme}
-        setTheme={setTheme}
-        settings={settings}
-        setSettings={setSettings}
-        onError={onError}
         open={railOpen}
+        mini={railMini}
+        onToggleMini={() => {
+          setRailMini((v) => {
+            localStorage.setItem("snens-rail-mini", v ? "0" : "1");
+            return !v;
+          });
+        }}
+        page={page}
+        onTickets={() => (dashOpen ? closeDashboard() : openDashboard())}
+        onSettings={() => (settingsOpen ? closeSettings() : openSettings())}
       />
+      {!railMini && <div className="rz rz-rail" title="Тяни, чтобы изменить ширину. Двойной клик вернёт как было" {...rail.gripProps} />}
 
-      <div className="grip grip--rail" title="тяни · двойной клик — сброс" {...rail.gripProps} />
+      <main className="main" data-hello={page === "chat" && !loading && !active}>
+        <DitherField on={page === "chat" && !loading && !active} form={settings.form} />
 
-      <main className="main">
-        <Topbar
-          current={current}
-          parentTitle={parent?.title}
-          /*
-           * Занятость — объединение двух источников, и оба нужны:
-           *  - `running` из SSE сессии: подписка приходит после чтения истории,
-           *    и `run.started` успевает уйти раньше — одним им топбар врал
-           *    «простой» пока ход шёл;
-           *  - `state` карточки из потока списка (`/v1/events`): это правда ядра
-           *    на момент кадра и единственное, что не теряется при переподключении.
-           */
-          running={running || current?.state === "running" || current?.state === "stopping"}
-          canStop={Boolean(active && runId)}
-          onStop={() => active && runId && api.stop(active, runId).catch((e) => onError(String(e)))}
-          onBurger={() => setRailOpen(true)}
-          onDock={() => setDockOpen(true)}
-          onBack={back}
-        />
+        {dashOpen && (
+          <div
+            className="page page--tix"
+            tabIndex={-1}
+            ref={focusPage}
+            onKeyDown={(e) => {
+              if (e.key === "Escape" && !e.defaultPrevented) {
+                e.preventDefault();
+                closeDashboard();
+              }
+            }}
+          >
+            <Dashboard onClose={closeDashboard} onOpenSession={openSessionFromDashboard} onError={onError} sessions={sessions} />
+          </div>
+        )}
+        {settingsOpen && (
+          <SettingsPage
+            theme={theme}
+            setTheme={setTheme}
+            settings={settings}
+            setSettings={setSettings}
+            onError={onError}
+            onClose={closeSettings}
+            initial={settingsPane}
+          />
+        )}
 
-        {/* Дашборд занимает место ленты: это страница, а не слой поверх.
-            Лента остаётся смонтированной (скрыта), чтобы не терять скролл и
-            живой поток, когда человек вернётся. */}
-        {dashOpen && <Dashboard onClose={closeDashboard} onOpenSession={openSessionFromDashboard} onError={onError} />}
+        {current?.parent && page === "chat" && (
+          <button className="crumb" onClick={back} title={parent?.title ? `К «${parent.title}»` : "Назад"}>
+            <Icon name="back" />
+            К основной сессии
+          </button>
+        )}
 
-        <div className="feed" ref={feedRef} data-hidden={dashOpen}>
-          {loading && <div className="msg msg--system">загрузка…</div>}
-          {!loading && !active && (
-            <Hello model={model} />
-          )}
-          {!loading && active && msgs.length === 0 && <EmptySession />}
-          {active && (
-            <Feed
-              session={active}
-              blocks={blocks}
-              live={live}
-              approval={approval}
-              onDecide={decide}
-              error={error}
-              onDismissError={() => setError(null)}
-              onAnswer={answer}
-              answered={answered}
-            />
-          )}
+        <div className="feed" ref={feedRef} data-hidden={page !== "chat"}>
+          <div className="col">
+            {loading && <div className="msg msg--system">Загрузка…</div>}
+            {!loading && !active && <Hello model={model} onModel={() => openSettings("models")} />}
+            {!loading && active && msgs.length === 0 && !busy && <EmptySession />}
+            {active && (
+              <Feed
+                session={active}
+                blocks={blocks}
+                live={live}
+                approval={approval}
+                onDecide={decide}
+                error={error}
+                onDismissError={() => setError(null)}
+                onAnswer={answer}
+                answered={answered}
+                onFork={onFork}
+              />
+            )}
+            {active && wave && <WorkWave kind={wave.kind} label={wave.label} since={runSince || Date.now()} />}
+          </div>
           <button
             ref={toBottomRef}
-            className="feed__bottom"
+            className="feed__bottom ibtn"
             data-show="false"
             onClick={toBottom}
-            aria-label="в конец ленты"
+            aria-label="В конец ленты"
           >
-            ↓
+            <Icon name="down" />
           </button>
         </div>
 
-        <Composer
-          hidden={dashOpen}
-          resetKey={active}
-          pending={pending}
-          onAttach={attach}
-          onDetach={detach}
-          onSend={send}
-        />
-
-        <Statusbar model={model} current={current} />
+        <div className="foot" hidden={page !== "chat"}>
+          {approval && (
+            <div className="appr-wrap">
+              <ApprovalBar approval={approval} onDecide={decide} />
+            </div>
+          )}
+          <Composer
+            hidden={page !== "chat"}
+            resetKey={active}
+            pending={pending}
+            onAttach={attach}
+            onDetach={detach}
+            onSend={send}
+            bar={{
+              model: current?.model || model,
+              onModel: () => openSettings("models"),
+              agents: agentCount,
+              onAgents: () => {
+                if (dockOpen && dockTab === "agents") setDockOpen(false);
+                else {
+                  setDockTab("agents");
+                  setDockOpen(true);
+                }
+              },
+              ctxPct,
+              ctxTitle: ctx.breakdown ? `${fmtK(ctx.breakdown.total)} из ${fmtK(ctx.limit)}` : "",
+              onCtx: () => {
+                if (dockOpen && dockTab === "ctx") setDockOpen(false);
+                else {
+                  setDockTab("ctx");
+                  setDockOpen(true);
+                }
+              },
+              running: busy,
+              canStop: Boolean(active && runId),
+              onStop: () => {
+                if (active && runId) api.stop(active, runId).catch((e) => onError(String(e)));
+              },
+              onBurger: () => setRailOpen(true),
+            }}
+          />
+        </div>
       </main>
 
-      <div className="grip grip--dock" title="тяни · двойной клик — сброс" {...dock.gripProps} />
-
-      <aside className="dock" aria-label="док">
-        {active && <ContextWindow breakdown={ctx.breakdown} limit={ctx.limit} />}
-        <Dock tab={dockTab} setTab={setDockTab} tools={tools} session={active ?? ""}>
-          <Agents sessions={sessions} active={active} onPick={openChild} />
-        </Dock>
-      </aside>
-
-      <aside className="dock dock--sheet" data-open={dockOpen} aria-label="док">
-        {dockOpen && (
-          <>
-            {active && <ContextWindow breakdown={ctx.breakdown} limit={ctx.limit} />}
+      {dockShown && (
+        <>
+          <div className="rz rz-dock" title="Тяни, чтобы изменить ширину. Двойной клик вернёт как было" {...dock.gripProps} />
+          <aside className="dock" aria-label="Подагенты, тулы и контекст">
             <Dock
               tab={dockTab}
               setTab={setDockTab}
               tools={tools}
               session={active ?? ""}
+              agentCount={agentCount}
+              agents={<Agents sessions={sessions} active={active} onPick={openChild} />}
+              context={<ContextWindow breakdown={ctx.breakdown} limit={ctx.limit} />}
               onClose={() => setDockOpen(false)}
-            >
-              <Agents sessions={sessions} active={active} onPick={openChild} />
-            </Dock>
-          </>
-        )}
-      </aside>
+              onMinWidth={setDockMin}
+            />
+          </aside>
+        </>
+      )}
+      {railOpen && <button className="mob-scrim" aria-label="Закрыть список" onClick={() => setRailOpen(false)} />}
     </div>
   );
 }

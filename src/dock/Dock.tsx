@@ -1,49 +1,73 @@
-import type { ReactNode } from "react";
+import { useLayoutEffect, useRef, type ReactNode } from "react";
 import type { ToolRun } from "../lenta";
 import { ToolRow } from "./ToolRow";
+import { Icon } from "../ui/icons";
 
-export type DockTab = "windows" | "tools";
+export type DockTab = "agents" | "tools" | "ctx";
 
-/** Док: табы «окна»/«тулы», счётчик живых вызовов, кнопка закрытия на шторке. */
+/**
+ * Правая панель чата: вкладки «Подагенты», «Тулы», «Контекст». Вкладки
+ * растягиваются вместе с панелью, а сжимаются не уже своего текста; эту
+ * ширину панель сообщает наверх (`onMinWidth`), чтобы тяга не делала её уже.
+ */
 export function Dock({
   tab,
   setTab,
   tools,
   session,
-  children,
+  agentCount,
+  agents,
+  context,
   onClose,
+  onMinWidth,
 }: {
   tab: DockTab;
   setTab: (t: DockTab) => void;
   tools: ToolRun[];
   session: string;
-  children?: ReactNode;
-  onClose?: () => void;
+  agentCount: number;
+  agents: ReactNode;
+  context: ReactNode;
+  onClose: () => void;
+  onMinWidth?: (w: number) => void;
 }) {
   const running = tools.filter((t) => t.state === "running").length;
+  const tabsRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const t = tabsRef.current;
+    if (!t || !onMinWidth) return;
+    const keep = t.style.width;
+    t.style.width = "max-content";
+    const w = t.offsetWidth;
+    t.style.width = keep;
+    onMinWidth(Math.ceil(w) + 1);
+  }, [onMinWidth, agentCount, tools.length, running]);
   return (
     <>
-      <div className="dock__tabs" role="tablist">
-        <button role="tab" aria-selected={tab === "windows"} onClick={() => setTab("windows")}>
-          окна
+      <div className="tabs" role="tablist" ref={tabsRef}>
+        <button role="tab" aria-selected={tab === "agents"} onClick={() => setTab("agents")}>
+          Подагенты <b>{agentCount}</b>
         </button>
         <button role="tab" aria-selected={tab === "tools"} onClick={() => setTab("tools")}>
-          тулы <b>{tools.length}</b>
+          Тулы <b>{tools.length}</b>
           {running ? <b className="live">{running}</b> : null}
         </button>
-        {onClose && (
-          <button className="dock__close" onClick={onClose} aria-label="закрыть док">
-            ×
-          </button>
-        )}
+        <button role="tab" aria-selected={tab === "ctx"} onClick={() => setTab("ctx")}>
+          Контекст
+        </button>
+        <button className="ibtn" onClick={onClose} aria-label="Закрыть панель">
+          <Icon name="close" />
+        </button>
       </div>
-      <div className="dock__body" role="tabpanel">
-        {tab === "windows" ? (
-          children
+      <div className="dock-body" role="tabpanel">
+        {tab === "agents" ? (
+          agents
+        ) : tab === "ctx" ? (
+          context
         ) : tools.length === 0 ? (
-          <div className="dock__empty">пока ни одного вызова</div>
+          <div className="dock-empty">Пока ни одного вызова</div>
         ) : (
-          tools.map((t) => <ToolRow key={t.callId} t={t} session={session} />)
+          [...tools].reverse().map((t) => <ToolRow key={t.callId} t={t} session={session} />)
         )}
       </div>
     </>

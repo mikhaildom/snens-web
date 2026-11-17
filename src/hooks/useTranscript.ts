@@ -30,7 +30,10 @@ export function useTranscript({ active, showRecall, onError }: Options) {
     queued: TranscriptMessage[];
   }>({ sid: "", msgs: [], live: [], queued: [] });
   const [apr, setApr] = useState<{ sid: string; value: Approval | null }>({ sid: "", value: null });
-  const [running, setRunning] = useState(false);
+  // Флаг хода привязан к сессии: при переключении на другую сессию конец
+  // хода прошлой сюда уже не придёт, и без привязки «Думает» висел бы вечно.
+  const [run, setRun] = useState<{ sid: string; on: boolean }>({ sid: "", on: false });
+  const running = run.sid === active && run.on;
   const [runId, setRunId] = useState<string | null>(null);
   /** Сколько шагов модели закончилось в этом ходе: по нему обновляется окно контекста. */
   const [steps, setSteps] = useState(0);
@@ -58,7 +61,7 @@ export function useTranscript({ active, showRecall, onError }: Options) {
         stop = subscribe(sid, h.cursor, (e: SurfaceEvent) => {
           switch (e.type) {
             case "run.started":
-              setRunning(true);
+              setRun({ sid, on: true });
               setRunId(e.run_id ?? null);
               patch(() => ({ live: [] }));
               break;            // Шаг завершён: расход посчитан, окно контекста устарело.
@@ -91,7 +94,7 @@ export function useTranscript({ active, showRecall, onError }: Options) {
               );
               break;
             case "run.finished": {
-              setRunning(false);
+              setRun({ sid, on: false });
               setRunId(null);
               const status = String(e.status ?? "");
               if (status !== "ok" && e.error) onError(`${status}: ${e.error}`);

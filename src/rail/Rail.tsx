@@ -1,10 +1,7 @@
 import { memo } from "react";
 import type { SearchHit, SessionInfo } from "../api";
-import type { Settings } from "../settings";
-import type { Theme } from "../theme";
-import { connection, surfaceLabel } from "../lib/connection";
 import { relTime } from "../lib/time";
-import { SettingsBar } from "../settings/SettingsBar";
+import { Icon } from "../ui/icons";
 
 type RailProps = {
   sessions: SessionInfo[];
@@ -17,152 +14,173 @@ type RailProps = {
   setRemoving: (id: string | null) => void;
   onPick: (id: string) => void;
   onNew: () => void;
-  /** Открыть дашборд тикетов и ревью — отдельной страницей. */
-  onDashboard: () => void;
   onRemove: (id: string) => void;
   onClose: () => void;
-  theme: Theme;
-  setTheme: (t: Theme) => void;
-  settings: Settings;
-  setSettings: (s: Settings) => void;
-  /** Показ ошибок правки настроек — тот же канал, что у остальных экранов. */
-  onError: (e: string) => void;
   open: boolean;
+  /** Узкий режим: только значки. */
+  mini: boolean;
+  onToggleMini: () => void;
+  /** Какая вкладка открыта вместо чата: кнопка этой вкладки подсвечена. */
+  page: "chat" | "tickets" | "settings";
+  onTickets: () => void;
+  onSettings: () => void;
 };
 
+/** Значок сессии: один из восьми пиксельных, выбран по id, чтобы не прыгал. */
+function glyphPos(id: string): React.CSSProperties {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0;
+  const pos = `${-18 * (Math.abs(h) % 8)}px 0`;
+  return { WebkitMaskPosition: pos, maskPosition: pos };
+}
+
 /**
- * Левая рельса: поиск по журналам, список сессий, создание, настройки.
- *
- * Бейдж рядом с маркой — не константа: в окне десктоп-оболочки «web» было бы
- * враньём (`lib/connection.ts` знает, где клиент запущен).
+ * Группа по дню последнего изменения: «Сегодня», «Вчера», «Ранее». Без
+ * времени приходит только что созданная сессия: она сегодняшняя.
+ */
+function dayGroup(ts?: number): string {
+  if (!ts) return "Сегодня";
+  const d = new Date(ts * 1000);
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  if (d.getTime() >= start) return "Сегодня";
+  if (d.getTime() >= start - 86_400_000) return "Вчера";
+  return "Ранее";
+}
+
+/**
+ * Левая колонка: поиск сверху, «Новая сессия» первой строкой списка, сессии по
+ * дням, внизу тикеты, настройки и сворачивание.
  */
 export const Rail = memo(function Rail(p: RailProps) {
   const roots = p.sessions.filter((s) => !s.parent);
   const searchMode = p.query.trim().length > 0;
+  const groups: Array<[string, SessionInfo[]]> = [];
+  for (const s of roots) {
+    const g = dayGroup(s.updated_at);
+    const last = groups[groups.length - 1];
+    if (last && last[0] === g) last[1].push(s);
+    else groups.push([g, [s]]);
+  }
   return (
-    <nav className="rail" data-open={p.open} aria-label="сессии">
-      <div className="rail__brand">
-        <span className="rail__mark">snens</span>
-        <span className="rail__ver">{surfaceLabel(connection().source)}</span>
-        <button className="rail__close" onClick={p.onClose} aria-label="закрыть">
-          ×
+    <nav className="rail" data-open={p.open} aria-label="Сессии">
+      <div className="rail-top">
+        <label className="rsearch">
+          <Icon name="search" />
+          <input
+            value={p.query}
+            placeholder="Поиск"
+            aria-label="Поиск по сессиям и сообщениям"
+            onChange={(e) => p.setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") p.setQuery("");
+            }}
+          />
+          {p.searching && <span className="rsearch__busy">…</span>}
+        </label>
+        <button className="ibtn mob-only" onClick={p.onClose} aria-label="Закрыть список">
+          <Icon name="close" />
         </button>
       </div>
 
-      <div className="rail__search">
-        <input
-          value={p.query}
-          placeholder="поиск по сообщениям"
-          onChange={(e) => p.setQuery(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Escape") p.setQuery("");
-          }}
-        />
-        {p.searching && <span className="rail__searching">…</span>}
+      <div className="rail-list">
+        {searchMode ? (
+          <>
+            <div className="rail-date">Найдено {p.hits.length}</div>
+            {p.hits.map((h) => (
+              <button key={h.id} className="s-item" data-on={p.active === h.id} onClick={() => p.onPick(h.id)}>
+                <span className="s-text">{h.title || h.matches[0]?.snippet || "Без названия"}</span>
+                {h.matches[0] && <span className="s-hit">{h.matches[0].snippet}</span>}
+              </button>
+            ))}
+            {!p.searching && p.hits.length === 0 && <div className="rail-empty">Ничего не нашлось</div>}
+          </>
+        ) : (
+          <>
+            <button className="s-item s-new" onClick={p.onNew} title="Новая сессия">
+              <Icon name="plus" />
+              <span className="s-text">Новая сессия</span>
+            </button>
+            {groups.map(([title, list], gi) => (
+              <div key={`${gi}:${title}`} className="rail-group">
+                <div className="rail-date">{title}</div>
+                {list.map((s) => (
+                  <div key={s.id} className="s-row" data-removing={p.removing === s.id}>
+                    <button
+                      className="s-item"
+                      data-on={p.active === s.id && p.page === "chat"}
+                      onClick={() => p.onPick(s.id)}
+                      title={s.title || "Новая сессия"}
+                    >
+                      <span className="glyph" data-run={s.state === "running"} style={glyphPos(s.id)} aria-hidden="true" />
+                      <span className="s-text">{s.title || "Новая сессия"}</span>
+                      <span className="s-meta">{relTime(s.updated_at)}</span>
+                    </button>
+                    {p.removing === s.id ? (
+                      <span className="s-confirm">
+                        <button
+                          className="s-yes"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            p.onRemove(s.id);
+                          }}
+                        >
+                          Удалить
+                        </button>
+                        <button
+                          className="ibtn"
+                          aria-label="Отмена"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            p.setRemoving(null);
+                          }}
+                        >
+                          <Icon name="close" />
+                        </button>
+                      </span>
+                    ) : (
+                      <button
+                        className="ibtn s-trash"
+                        title="Удалить сессию"
+                        aria-label="Удалить сессию"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          p.setRemoving(s.id);
+                        }}
+                      >
+                        <Icon name="trash" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ))}
+          </>
+        )}
       </div>
 
-      <div className="rail__section">
-        <span>{searchMode ? `найдено ${p.hits.length}` : "сессии"}</span>
-        <span className="rail__actions">
-          {/* Дашборд рядом с «+»: это второй способ начать работу, а не
-              настройка — поэтому в секции, а не в подвале. */}
-          <button className="ghost rail__dash" title="тикеты и ревью" onClick={p.onDashboard}>
-            ▤
-          </button>
-          <button className="ghost" title="новая сессия" onClick={p.onNew}>
-            +
-          </button>
-        </span>
-      </div>
-
-      {searchMode ? (
-        <ul className="rail__list">
-          {p.hits.map((h) => (
-            <li key={h.id}>
-              <button className="rail__item" aria-current={p.active === h.id} onClick={() => p.onPick(h.id)}>
-                {h.title || h.matches[0]?.snippet || "—"}
-                <small>
-                  {relTime(h.updated_at)} · {h.surface}
-                </small>
-                {h.matches[0] && <span className="rail__hit">{h.matches[0].snippet}</span>}
-              </button>
-            </li>
-          ))}
-          {!p.searching && p.hits.length === 0 && <li className="rail__empty">ничего не найдено</li>}
-        </ul>
-      ) : (
-        <ul className="rail__list">
-          {roots.map((s) => (
-            <li key={s.id} className="rail__row" data-removing={p.removing === s.id}>
-              <button className="rail__item" aria-current={p.active === s.id} onClick={() => p.onPick(s.id)}>
-                {s.title || "новая сессия"}
-                <small>
-                  {relTime(s.updated_at)} · {s.surface}
-                  {s.state === "running" ? " · идёт" : ""}
-                </small>
-              </button>
-              {p.removing === s.id ? (
-                <span className="rail__confirm">
-                  <button
-                    className="rail__yes"
-                    title="удалить"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      p.onRemove(s.id);
-                    }}
-                  >
-                    ✓
-                  </button>
-                  {/* Крестик стоит там, где было ведро: двойной клик по
-                      привычному месту отменяет, а не удаляет. */}
-                  <button
-                    className="rail__no"
-                    title="отмена"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      p.setRemoving(null);
-                    }}
-                  >
-                    ×
-                  </button>
-                </span>
-              ) : (
-                <button
-                  className="rail__trash"
-                  title="удалить сессию"
-                  aria-label="удалить сессию"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    p.setRemoving(s.id);
-                  }}
-                >
-                  <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
-                    <path
-                      d="M3 4h10M6 4V2.5h4V4M4.5 4l.6 9.5h5.8L11.5 4M6.8 6.5v5M9.2 6.5v5"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.6"
-                    />
-                  </svg>
-                </button>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
-
-      <button className="rail__new" onClick={p.onNew}>
-        + новая сессия
-      </button>
-
-      <div className="rail__foot">
-        <SettingsBar
-          theme={p.theme}
-          setTheme={p.setTheme}
-          settings={p.settings}
-          setSettings={p.setSettings}
-          onError={p.onError}
-        />
+      <div className="rail-foot">
+        <button
+          className="ibtn"
+          data-on={p.page === "tickets"}
+          onClick={p.onTickets}
+          aria-label="Тикеты и ревью"
+          title="Тикеты и ревью"
+        >
+          <Icon name="tickets" />
+        </button>
+        <button
+          className="ibtn"
+          data-on={p.page === "settings"}
+          onClick={p.onSettings}
+          aria-label="Настройки"
+          title="Настройки"
+        >
+          <Icon name="settings" />
+        </button>
+        <button className="ibtn desk-only" onClick={p.onToggleMini} aria-label="Свернуть список" title="Свернуть список">
+          <Icon name="rail" />
+        </button>
       </div>
     </nav>
   );

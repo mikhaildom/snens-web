@@ -68,9 +68,9 @@ test("высота меряется по содержимому, а не по о
 });
 
 test("размер считается в килобайтах и строках", () => {
-  assert.equal(artifactSize(""), "0 Б · 0 строк");
-  assert.match(artifactSize("a\nb"), /^3 Б · 2 строки$/);
-  assert.match(artifactSize("x".repeat(2048)), /^2\.0 КБ · 1 строка$/);
+  assert.equal(artifactSize(""), "0 Б, 0 строк");
+  assert.match(artifactSize("a\nb"), /^3 Б, 2 строки$/);
+  assert.match(artifactSize("x".repeat(2048)), /^2\.0 КБ, 1 строка$/);
 });
 
 test("троттлинг: первый кадр немедленно, дальше по интервалу", () => {

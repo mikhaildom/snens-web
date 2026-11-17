@@ -1,10 +1,8 @@
 import type { WindowBreakdown } from "../api";
 
 /**
- * Окно контекста: расклад считает ядро (`GET /v1/sessions/{id}/context`) по той
- * же проекции промпта, что уедет провайдеру, и приводит к цифрам провайдера
- * калибровкой по прошлым ходам. Статьи — как в /context у Claude Code:
- * системный промпт, сообщения, вызовы тулов, их результаты, картинки.
+ * Окно контекста: расклад считает ядро (`GET /v1/sessions/{id}/context`).
+ * Части различаются оттенками акцента, у каждой токены и доля от лимита.
  */
 export function ContextWindow({
   breakdown,
@@ -14,59 +12,49 @@ export function ContextWindow({
   limit: number;
 }) {
   if (!breakdown) {
-    return (
-      <div className="context">
-        <div className="context__head">
-          <b>окно</b>
-          <span>окно ещё не посчитано — начни ход</span>
-        </div>
-      </div>
-    );
+    return <div className="dock-empty">Окно ещё не посчитано. Оно появится после первого хода.</div>;
   }
   const b = breakdown;
-  const pct = limit > 0 ? Math.min(100, (b.total / limit) * 100) : 0;
-  const fmt = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k` : String(n));
+  const fmt = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k` : String(Math.round(n)));
+  const pct = (n: number) => (limit > 0 ? (n / limit) * 100 : 0);
+  const pf = (n: number) => {
+    const v = pct(n);
+    return `${v >= 10 ? v.toFixed(0) : v.toFixed(1)}%`;
+  };
   const all: Array<[string, number, string]> = [
-    ["system", b.system, "системный промпт"],
-    ["messages", b.messages, "сообщения"],
-    ["toolCalls", b.tool_calls, "вызовы тулов"],
-    ["toolResults", b.tool_results, "результаты тулов"],
-    ["images", b.images, "картинки"],
+    ["c1", b.system, "Системный промпт"],
+    ["c2", b.messages, "Сообщения"],
+    ["c3", b.tool_calls, "Вызовы тулов"],
+    ["c4", b.tool_results, "Результаты"],
+    ["c5", b.images, "Картинки"],
   ];
   const segs = all.filter(([, n]) => n > 0);
+  const free = Math.max(0, limit - b.total);
   return (
-    <div className="context">
-      <div className="context__head">
-        <b>
-          {fmt(b.total)} / {fmt(limit)}
-        </b>
-        <span>{pct.toFixed(0)}%</span>
+    <div className="dock-ctx">
+      <div className="bignum">
+        {fmt(b.total)} <small>из {fmt(limit)}, {pf(b.total)}</small>
       </div>
-      <div
-        className="context__bar"
-        title={segs.map(([, n, t]) => `${t} ${Math.round(n)}`).join(" · ")}
-      >
-        {segs.map(([kind, n]) => (
-          <span
-            key={kind}
-            className="context__seg"
-            data-kind={kind}
-            style={{ width: `${limit > 0 ? (n / limit) * 100 : 0}%` }}
-          />
+      <div className="seg" aria-hidden="true">
+        {segs.map(([k, n]) => (
+          <i key={k} className={k} style={{ width: `${pct(n)}%` }} />
         ))}
-        <span className="context__seg" data-kind="free" />
       </div>
-      <div className="context__legend">
-        {segs.map(([kind, n, title]) => (
-          <span key={kind} title={`${Math.round(n).toLocaleString("ru-RU")} токенов`}>
-            <i data-kind={kind} />
-            {title} {fmt(n)}
-          </span>
+      <div className="leg">
+        {segs.map(([k, n, title]) => (
+          <div key={k} className="leg-r">
+            <b className={k} />
+            <span>{title}</span>
+            <span className="n">{fmt(n)}</span>
+            <span className="n">{pf(n)}</span>
+          </div>
         ))}
-        <span>
-          <i data-kind="free" />
-          свободно {fmt(Math.max(0, limit - b.total))}
-        </span>
+        <div className="leg-r">
+          <b className="c0" />
+          <span>Свободно</span>
+          <span className="n">{fmt(free)}</span>
+          <span className="n">{pf(free)}</span>
+        </div>
       </div>
     </div>
   );

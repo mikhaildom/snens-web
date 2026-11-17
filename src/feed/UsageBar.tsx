@@ -1,40 +1,65 @@
+import { useState } from "react";
 import type { Usage } from "../api";
+import { Icon } from "../ui/icons";
+
+const n = (v: number) => (v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(v));
+const money = (c: number) => `$${c < 0.01 ? c.toFixed(4) : c.toFixed(3)}`;
 
 /**
- * Расход хода: кеш-хит (с иконкой базы), кеш-мисс/выход и цена. Всё, кроме
- * иконки с процентом, выводится целиком, но появляется только при ховере на
- * сообщение или шаг (см. `.usage` в CSS): в спокойном чтении цифры не нужны.
+ * Токены и цена ответа: значок «i» и всплывашка с входом, попаданием и
+ * промахом кеша, выходом и ценой. Видна при наведении и по клику (на тач-экране
+ * наведения нет). Цена рядом со значком — единственная цифра на виду.
  */
-export function UsageBar({ u }: { u: Usage }) {
-  const hit = u.in_tok > 0 ? Math.round((u.cached_tok / u.in_tok) * 100) : 0;
-  const miss = u.in_tok - u.cached_tok;
+export function UsageInfo({ u }: { u: Usage }) {
+  const [open, setOpen] = useState(false);
+  const miss = Math.max(0, u.in_tok - u.cached_tok);
+  const pct = u.in_tok > 0 ? Math.round((u.cached_tok / u.in_tok) * 100) : 0;
   const cost = u.cost_micro / 1_000_000;
   return (
-    <span
-      className="usage"
-      title={[
-        `вход ${u.in_tok.toLocaleString("ru-RU")}`,
-        `кеш ${u.cached_tok.toLocaleString("ru-RU")}`,
-        `без кеша ${miss.toLocaleString("ru-RU")}`,
-        `выход ${u.out_tok.toLocaleString("ru-RU")}`,
-        u.reason_tok > 0 ? `рассуждение ${u.reason_tok.toLocaleString("ru-RU")}` : "",
-        `цена $${cost < 0.01 ? cost.toFixed(4) : cost.toFixed(3)}`,
-      ]
-        .filter(Boolean)
-        .join(" · ")}
-    >
-      <span className="usage__hit">
-        <svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true" className="usage__db">
-          <ellipse cx="12" cy="6" rx="8" ry="3" />
-          <path d="M4 6v12c0 1.66 3.58 3 8 3s8-1.34 8-3V6" />
-          <path d="M4 12c0 1.66 3.58 3 8 3s8-1.34 8-3" />
-        </svg>
-        {hit}%
+    <span className="info-w" data-open={open}>
+      <button
+        className="info"
+        aria-label="токены и цена ответа"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <Icon name="info" size={14} />
+      </button>
+      <span className="stat" role="note">
+        <span className="stat-r">
+          <span>Вход</span>
+          <b>{n(u.in_tok)}</b>
+        </span>
+        <span className="stat-r" data-sub="yes">
+          <span>Кеш: попадание</span>
+          <span>{n(u.cached_tok)}</span>
+        </span>
+        <span className="stat-r" data-sub="yes">
+          <span>Кеш: промах</span>
+          <span>{n(miss)}</span>
+        </span>
+        <span className="stat-bar" aria-hidden="true">
+          <i style={{ width: `${pct}%` }} />
+        </span>
+        <span className="stat-r">
+          <span>Выход</span>
+          <b>{n(u.out_tok)}</b>
+        </span>
+        {u.reason_tok > 0 && (
+          <span className="stat-r" data-sub="yes">
+            <span>Из них размышления</span>
+            <span>{n(u.reason_tok)}</span>
+          </span>
+        )}
+        <span className="stat-r stat-top">
+          <span>Цена</span>
+          <b>{money(cost)}</b>
+        </span>
       </span>
-      <span className="usage__dim">
-        {miss}/{u.out_tok}
-      </span>
-      <span className="usage__cost">${cost < 0.01 ? cost.toFixed(4) : cost.toFixed(3)}</span>
+      <span className="info-cost">{money(cost)}</span>
     </span>
   );
 }
+
+/** Старое имя: места, где расход стоял в шапке, теперь получают значок. */
+export const UsageBar = UsageInfo;

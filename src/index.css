@@ -1,31 +1,18 @@
 /* ─────────────────────────────────────────────────────────────
-   snens/web — точки входа стилей.
-   Слои лежат в styles/ и идут в этом порядке каскада:
-   не переставлять @import, порядок = приоритет.
+   snens/web, редизайн. Порядок @import = приоритет каскада.
+   Из старых слоёв остались только стили содержимого (markdown, медиа,
+   артефакты, схемы, пейринг) и форм настроек с дашбордом: они берут
+   новую палитру через старые имена переменных. Каркас — в 30-shell.
    ───────────────────────────────────────────────────────────── */
 
 @import "./styles/00-tokens.css";
-@import "./styles/01-frame.css";
-@import "./styles/02-rail.css";
-@import "./styles/03-main.css";
-@import "./styles/04-feed.css";
-@import "./styles/05-steps.css";
-@import "./styles/06-tool.css";
 @import "./styles/07-media.css";
-@import "./styles/08-settings.css";
 @import "./styles/09-markdown.css";
-@import "./styles/10-composer.css";
-@import "./styles/11-dock.css";
-@import "./styles/12-adaptive.css";
 @import "./styles/13-voices.css";
-@import "./styles/14-rail-extra.css";
-@import "./styles/15-dock-agents.css";
-@import "./styles/16-hello.css";
 @import "./styles/17-composer-files.css";
-@import "./styles/18-usage.css";
-@import "./styles/19-context.css";
 @import "./styles/20-instance.css";
 @import "./styles/21-pair.css";
-@import "./styles/22-dashboard.css";
 @import "./styles/23-artifact.css";
 @import "./styles/24-mermaid.css";
+@import "./styles/30-shell.css";
+@import "./styles/31-legacy.css";

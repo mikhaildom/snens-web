@@ -47,16 +47,14 @@ export function Reasoning({ text, side }: { text: string; side?: ReactNode }) {
 export function Step({ m, tools, hooks }: { m: TranscriptMessage; tools: ToolRun[]; hooks: ArtifactHooks }) {
   const hasBody = Boolean(m.content) || tools.length > 0 || Boolean(m.reasoning);
   if (!hasBody) return null;
-  // Вставка в ход: вопрос или отчёт подагента. Автор — по имени сессии, без
-  // служебных префиксов в тексте. Артефактов тут не бывает: это чужое слово.
-  if (m.via === "report" || m.via === "ask") {
+  // Вставка в ход: вернувшаяся работа (итог фонового задания, отчёт подагента)
+  // или вопрос подагента. Автор — по имени сессии, без служебных префиксов в
+  // тексте. Артефактов тут не бывает: это чужое слово.
+  if (m.via === "report" || m.via === "ask" || m.via === "wake") {
+    const who = m.via === "ask" ? "Вопрос подагента" : m.via === "wake" ? "Вернувшаяся работа" : "Отчёт подагента";
     return (
       <div className="step step--via">
-        <MsgHead
-          who={m.via === "ask" ? "Вопрос подагента" : "Отчёт подагента"}
-          meta={<span>{m.from ? m.from.slice(0, 8) : ""}</span>}
-          ts={m.ts}
-        />
+        <MsgHead who={who} meta={<span>{m.from ? m.from.slice(0, 8) : ""}</span>} ts={m.ts} />
         <div className="via__body">{m.content && <Markdown text={m.content} images={false} />}</div>
       </div>
     );

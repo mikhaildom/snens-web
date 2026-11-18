@@ -206,6 +206,33 @@ test("вложения и время тула приезжают из стрим
   assert.equal(tool.tool.ms, 40);
 });
 
+test("вернувшаяся работа не рисуется репликой человека", () => {
+  // Итог фонового задания лежит в журнале записью `user` с `source: "wake"`,
+  // ядро отдаёт его полем `via`. Отдельного блока у него нет и быть не должно:
+  // это не голос человека, а часть работы — значит в пачку рядом с тулами.
+  const msgs: TranscriptMessage[] = [
+    { seq: 1, ts: 0, role: "user", content: "проверь тулы" },
+    msg(2, {
+      tool_calls: [{ id: "c1", type: "function", function: { name: "run", arguments: "{}" } }],
+    }),
+    {
+      seq: 3,
+      ts: 0,
+      role: "user",
+      content: "[задание 1 завершилось: exit 0]\n\nвсё работает",
+      source: "wake",
+      via: "wake",
+    },
+    msg(4, { content: "итог" }),
+  ];
+  const blocks = buildBlocks(msgs, collectTools(msgs, [], true));
+  assert.deepEqual(
+    blocks.map((b) => b.kind),
+    ["user", "fold", "say"],
+    "wake не должен становиться блоком user",
+  );
+});
+
 test("маркер ревью рвёт пачку и стоит отдельным блоком", () => {
   const msgs: TranscriptMessage[] = [
     { seq: 1, ts: 0, role: "user", content: "q" },

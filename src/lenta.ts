@@ -308,10 +308,12 @@ export function buildBlocks(msgs: TranscriptMessage[], tools: ToolRun[]): Block[
         out.push({ kind: "answer", m });
         continue;
       }
-      // Вставка в ход от подагента (`report`/`ask`) — часть работы, а не реплика
-      // человека: уезжает в текущую пачку. Сообщение самого человека и его же
-      // steer (`via: "steer"`) остаются репликами.
-      if (m.via === "report" || m.via === "ask") {
+      // Вставка в ход — это чужая работа, а не реплика человека: отчёт или
+      // вопрос подагента (`report`/`ask`) и вернувшаяся работа — итог фонового
+      // задания или подагента (`wake`). Всё это уезжает в текущую пачку.
+      // Сообщение самого человека и его же steer (`via: "steer"`) остаются
+      // репликами.
+      if (m.via === "report" || m.via === "ask" || m.via === "wake") {
         fold.push({ kind: "msg", m, tools: [] });
         continue;
       }

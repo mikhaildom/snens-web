@@ -151,6 +151,8 @@ export interface InstanceConfig {
     max_result_chars: number;
     reduce_output: boolean;
     attachments: boolean;
+    /** Бюджет картинок на один запрос, байты; 0 — не отправлять. */
+    media_budget_bytes: number;
     ctx_window: number;
     /** 0 — авто по окну модели. */
     context_budget: number;

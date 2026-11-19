@@ -234,6 +234,9 @@ export function AgentPane({ c }: { c: ConfigApi }) {
       <Row title="Вложения" k="attachments" desc="Картинки и файлы уезжают модели. Отключи для моделей, которые понимают только текст.">
         <Toggle label="Вложения" on={v.attachments} disabled={c.busy} onChange={(x) => p({ attachments: x })} />
       </Row>
+      <Row title="Бюджет картинок" k="media_budget_bytes" desc="Сколько картинок уезжает в одном запросе. Сверх бюджета старые не отправляются, а остаются пометкой с путём: иначе провайдер ответит 413 на всё тело и сессию нельзя будет продолжить.">
+        <Num label="Бюджет картинок" value={Math.round(v.media_budget_bytes / 1_048_576)} min={0} unit="МБ" disabled={c.busy} onCommit={(n) => p({ media_budget_bytes: n * 1_048_576 })} />
+      </Row>
       <div className="set-sec">Фоновое ревью</div>
       <Row title="Минимум ходов" k="review_min_turns" desc="Сессии короче этого порога не разбираются.">
         <Num label="Минимум ходов" value={v.review_min_turns} unit="ходов" disabled={c.busy} onCommit={(n) => p({ review_min_turns: n })} />

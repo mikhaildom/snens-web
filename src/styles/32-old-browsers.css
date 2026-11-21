@@ -1,0 +1,29 @@
+/* Запасные цвета для браузеров без color-mix() — Chrome/Supermium 109 на
+   Windows 7 (color-mix есть с Chrome 111). Там объявление с color-mix
+   выбрасывается целиком, и фон пропадает: подложка лайтбокса становится
+   прозрачной, клетки карты активности и полоса контекста - невидимыми.
+   В новых браузерах блок не применяется. */
+@supports not (color: color-mix(in srgb, red 50%, blue)) {
+  .lightbox {
+    background: var(--paper);
+  }
+  .c1,
+  .c2,
+  .c3,
+  .c5 {
+    background: var(--accent);
+  }
+  .c1 {
+    opacity: 0.4;
+  }
+  .c2 {
+    opacity: 0.6;
+  }
+  .c3 {
+    opacity: 0.8;
+  }
+  .ctx-zone {
+    background: var(--accent);
+    opacity: 0.4;
+  }
+}

@@ -1,3 +1,5 @@
+// Первым импортом: полифилы должны встать до кода, который их зовёт.
+import "./lib/legacy-polyfills";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "@fontsource/jetbrains-mono/400.css";

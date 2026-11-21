@@ -31,6 +31,11 @@ export default defineConfig({
   // Признак «на этой странице есть прокси /api» уезжает в бандл константой:
   // по нему `lib/connection.ts` решает, показывать ли экран пейринга.
   define: { __SNENS_PROXY__: JSON.stringify(proxyOn) },
+  // Цель сборки явно: дефолт Vite 8 («baseline widely available») новее
+  // браузеров, которые ещё живут на Windows 7 — Chrome/WebView2 109 (последние
+  // для Win7, ими же собран Supermium-база) и Firefox ESR 115. Без этого бандл
+  // может содержать синтаксис, который там не парсится, и страница остаётся белой.
+  build: { target: ['chrome109', 'firefox115', 'edge109', 'safari16'] },
   server: {
     // слушаем tailscale: и ssh-туннель, и десктоп-обёртка бьются в тот же адрес
     host: '100.73.69.107',

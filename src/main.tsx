@@ -6,8 +6,13 @@ import "@fontsource/jetbrains-mono/400.css";
 import "@fontsource/jetbrains-mono/700.css";
 import App from "./App";
 import { PairGate } from "./pair/PairGate";
+import { takeLaunchCode } from "./pair/launchCode";
 import { applyTheme, initialTheme } from "./theme";
 import "./index.css";
+
+// Код пейринга из адреса (`#pair=…`) — забрать и стереть из адресной строки до
+// рендера, даже если браузер уже подключён (см. `pair/launchCode.ts`).
+takeLaunchCode();
 
 // тема выставляется до первого рендера, чтобы не мигало
 applyTheme(initialTheme());

@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { claim, validatePair } from "./claim.ts";
+import { takeLaunchOnce } from "./launchCode.ts";
 import { clearConnection, hostOf, saveConnection, type Connection } from "../lib/connection.ts";
 import { forgetShellRemote, inShell, isRemote, pairShell, reloadShell } from "../lib/shell.ts";
 
@@ -16,14 +17,27 @@ import { forgetShellRemote, inShell, isRemote, pairShell, reloadShell } from "..
  * пейринга. В десктоп-оболочке его хранит `window.__SNENS__`, а не localStorage.
  */
 export function PairScreen({ onPaired }: { onPaired?: () => void }) {
-  const [baseUrl, setBaseUrl] = useState(() => localStorage.getItem("snens-pair-host") ?? "");
-  const [code, setCode] = useState("");
+  // Код из адреса страницы (`#pair=…`, его подставляет ярлык запуска) —
+  // подключаемся сами, форма лишь показывает, что происходит.
+  const [launch] = useState(takeLaunchOnce);
+  const [baseUrl, setBaseUrl] = useState(
+    () => launch?.baseUrl ?? localStorage.getItem("snens-pair-host") ?? "",
+  );
+  const [code, setCode] = useState(launch?.code ?? "");
   const [name, setName] = useState("Браузер");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const autoSent = useRef(false);
 
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
+  useEffect(() => {
+    if (!launch || autoSent.current) return;
+    autoSent.current = true;
+    void submit();
+    // зависимостей нет намеренно: автоподключение — один раз на монтирование
+  }, []);
+
+  async function submit(e?: React.FormEvent) {
+    e?.preventDefault();
     if (busy) return;
     // Проверка ввода — до сети: `claim` вернёт ту же ошибку, но мгновенно
     // отвечать человеку приятнее, чем после таймаута.

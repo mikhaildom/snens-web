@@ -22,8 +22,27 @@
   .c3 {
     opacity: 0.8;
   }
+  /* c5 в оригинале темнее c4 (акцент с примесью --ink). */
+  .c5 {
+    filter: brightness(0.8);
+  }
   .ctx-zone {
     background: var(--accent);
     opacity: 0.4;
+  }
+  /* Сегмент «вызовы тулов» на полосе контекста и его метка в легенде. */
+  .context__seg[data-kind="toolCalls"],
+  .context__legend i[data-kind="toolCalls"] {
+    background: var(--accent);
+    opacity: 0.55;
+  }
+  /* Подложка и тень панели настроек: полупрозрачный --ink. */
+  .settings__scrim,
+  .settings__scrim:hover,
+  .settings__scrim:focus-visible {
+    background: rgba(0, 0, 0, 0.22);
+  }
+  .settings__panel {
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
   }
 }

@@ -25,7 +25,15 @@ export function cssRgb(el: Element, name = "--accent"): [number, number, number]
   return m && m.length >= 3 ? [Number(m[0]), Number(m[1]), Number(m[2])] : [126, 232, 181];
 }
 
+/**
+ * «Меньше движения»: так просит система или машина слабая (≤2 ядер — например,
+ * ноутбук на AMD E-300 с Win7, где живое поле в простое съедало ~80% процессора).
+ * Тогда поля рисуются одним неподвижным кадром.
+ */
 export function reducedMotion(): boolean {
+  if (typeof navigator !== "undefined" && navigator.hardwareConcurrency > 0 && navigator.hardwareConcurrency <= 2) {
+    return true;
+  }
   return typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
